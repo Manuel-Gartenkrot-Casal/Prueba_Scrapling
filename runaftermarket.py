@@ -1,6 +1,10 @@
 from spiders.aftermarket_spider import AftermarketSpider
+from db import col_aftermarket, guardar_items
 
 result = AftermarketSpider().start()
 
-print(f"Artículos scrapeados: {len(result.items)}")
-result.items.to_json("data/aftermarket.json")
+items = list(result.items)
+print(f"Artículos scrapeados: {len(items)}")
+
+guardados = guardar_items(items, col_aftermarket)
+print(f"Guardados/actualizados en MongoDB: {guardados}")

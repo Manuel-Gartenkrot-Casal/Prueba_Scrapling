@@ -1,9 +1,12 @@
 from spiders.lanacion_spider import LanacionSpider
+from db import col_lanacion, guardar_items
 
 result = LanacionSpider().start()
 
-print(f"Artículos scrapeados: {len(result.items)}")
-for item in result.items:
+items = list(result.items)
+print(f"Artículos scrapeados: {len(items)}")
+for item in items:
     print(item["titulo"])
 
-result.items.to_json("data/autopartes.json")
+guardados = guardar_items(items, col_lanacion)
+print(f"Guardados/actualizados en MongoDB: {guardados}")
