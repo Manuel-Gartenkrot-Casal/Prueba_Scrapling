@@ -1,0 +1,3 @@
+scrapling[fetchers]
+pymongo[srv]
+flask
