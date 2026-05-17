@@ -73,3 +73,44 @@ Los datos se guardan en **MongoDB Atlas** en la base `PruebaScrapling`, con dos 
 
 La configuración de conexión está en `db.py`.
 
+---
+
+## Docker + Dashboard web
+
+La branch `docker-typescript` incluye toda la infraestructura dockerizada y un dashboard web para correr los spiders con un botón.
+
+### Arquitectura
+
+```
+[Browser] → botón → [Express/TypeScript :3000] → HTTP → [Flask/Python :5000] → spiders → MongoDB Atlas
+```
+
+### Requisitos
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/) (incluido en Docker Desktop)
+
+### Levantar todo
+
+```bash
+docker compose up --build
+```
+
+La primera vez tarda varios minutos porque descarga e instala Chromium dentro del contenedor Python.
+
+Luego abrí el dashboard en **http://localhost:3000**
+
+### Detener
+
+```bash
+docker compose down
+```
+
+### Agregar un spider nuevo
+
+1. Crear `spiders/nuevo_spider.py`
+2. Crear `runnuevo.py`
+3. En `flask_api.py`, agregar a `SPIDERS`: `"nombre": "runnuevo.py"`
+4. En `express/src/index.ts`, agregar `"nombre"` al array `VALID_SPIDERS`
+5. En `express/src/public/index.html`, copiar una card y cambiar el nombre
+
