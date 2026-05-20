@@ -73,3 +73,41 @@ Los datos se guardan en **MongoDB Atlas** en la base `PruebaScrapling`, con dos 
 
 La configuración de conexión está en `db.py`.
 
+
+---
+
+## Generación de artículos con IA
+
+Lee los artículos scrapeados de MongoDB y genera un artículo periodístico nuevo usando **Gemini**.
+
+### Configuración
+
+1. Obtené una API key en [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. En `generar_articulo.py`, reemplazá `"TU_API_KEY"` con tu clave:
+   ```python
+   GEMINI_API_KEY = "tu-clave-aqui"
+   ```
+
+### Instalación (si corrés sin Docker)
+
+```bash
+pip install google-generativeai
+```
+
+### Uso
+
+```bash
+# Genera un artículo combinando ambas fuentes (3 docs c/u)
+python generar_articulo.py
+
+# Solo artículos de La Nacion
+python generar_articulo.py --fuente lanacion
+
+# Solo artículos de Aftermarket
+python generar_articulo.py --fuente aftermarket
+
+# Usar más documentos como base
+python generar_articulo.py --cantidad 5
+```
+
+El artículo generado se imprime en consola y se guarda automáticamente en la colección `articulos_generados` de MongoDB. Cada documento fuente se marca como `usado_para_articulo: true` para no repetirlo.

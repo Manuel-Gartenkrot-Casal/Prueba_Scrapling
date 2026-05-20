@@ -1,0 +1,4 @@
+scrapling[fetchers]
+pymongo[srv]
+flask
+google-generativeai
