@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scraping Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #d0d0d0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 48px 40px;
+      min-height: 100vh;
+    }
+
+    header { margin-bottom: 40px; }
+    header h1 { font-size: 1.25rem; font-weight: 500; color: #fff; }
+    header p  { font-size: 0.8rem; color: #555; margin-top: 4px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: #161616;
+      border: 1px solid #242424;
+      border-radius: 10px;
+      padding: 24px;
+    }
+
+    .card .label  { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+    .card .spider { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 20px; }
+
+    .card .row { display: flex; align-items: center; gap: 12px; }
+
+    button {
+      background: #fff;
+      color: #000;
+      border: none;
+      padding: 7px 18px;
+      border-radius: 5px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    button:hover    { opacity: .82; }
+    button:disabled { opacity: .25; cursor: not-allowed; }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      border-radius: 20px;
+      border: 1px solid transparent;
+      display: none;
+    }
+    .badge.running { display: inline; background: #1a1500; border-color: #f0a500; color: #f0a500; }
+    .badge.ok      { display: inline; background: #0a1a0a; border-color: #4caf50; color: #4caf50; }
+    .badge.error   { display: inline; background: #1a0a0a; border-color: #f44336; color: #f44336; }
+
+    .log-section h2 {
+      font-size: 0.72rem;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 12px;
+    }
+
+    pre {
+      background: #0a0a0a;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      color: #888;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 140px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Scraping Dashboard</h1>
+    <p>Corré los spiders y guardá los resultados directo en MongoDB.</p>
+  </header>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="label">Spider 1</div>
+      <div class="spider">La Nacion</div>
+      <div class="row">
+        <button id="btn-lanacion" onclick="run('lanacion')">Correr</button>
+        <span class="badge" id="badge-lanacion"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Spider 2</div>
+      <div class="spider">Mundo Aftermarket</div>
+      <div class="row">
+        <button id="btn-aftermarket" onclick="run('aftermarket')">Correr</button>
+        <span class="badge" id="badge-aftermarket"></span>
+      </div>
+    </div>
+
+    <!-- Para agregar un spider nuevo: copiar una card, cambiar el nombre y el id -->
+
+  </div>
+
+  <div class="log-section">
+    <h2>Output</h2>
+    <pre id="output">Esperando...</pre>
+  </div>
+
+  <script>
+    async function run(spider) {
+      const btn    = document.getElementById(`btn-${spider}`);
+      const badge  = document.getElementById(`badge-${spider}`);
+      const output = document.getElementById('output');
+
+      // Deshabilitar todos los botones mientras corre
+      document.querySelectorAll('button').forEach(b => b.disabled = true);
+
+      badge.className   = 'badge running';
+      badge.textContent = 'Corriendo...';
+      output.textContent = `Iniciando ${spider}...\n`;
+
+      try {
+        const res  = await fetch(`/api/run/${spider}`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          badge.className   = 'badge ok';
+          badge.textContent = '✓ Completado';
+          output.textContent = data.output || '(sin output)';
+        } else {
+          badge.className   = 'badge error';
+          badge.textContent = '✗ Error';
+          output.textContent = data.error || 'Error desconocido.';
+        }
+      } catch (err) {
+        badge.className   = 'badge error';
+        badge.textContent = '✗ Conexión fallida';
+        output.textContent = String(err);
+      } finally {
+        document.querySelectorAll('button').forEach(b => b.disabled = false);
+      }
+    }
+  </script>
+
+</body>
+</html>
