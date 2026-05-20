@@ -5,6 +5,8 @@ Lee artículos scrapeados de MongoDB y genera un artículo
 periodístico usando Gemini. El artículo generado se guarda
 en la colección 'articulos_generados'.
 
+Requiere: config.json (service account de Google Cloud) en la raíz del proyecto.
+
 Uso:
     python generar_articulo.py                     # usa ambas fuentes, 3 docs c/u
     python generar_articulo.py --fuente lanacion   # solo La Nacion
@@ -15,56 +17,59 @@ Uso:
 import argparse
 import datetime
 import google.generativeai as genai
-from db import client, db
+from google.oauth2 import service_account
+from db import db
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-GEMINI_API_KEY = "TU_API_KEY"   # <-- reemplazá con tu clave de Gemini
-MODELO         = "gemini-1.5-flash"
+SERVICE_ACCOUNT_FILE = "config.json"
+MODELO               = "gemini-1.5-flash"
+SCOPES               = ["https://www.googleapis.com/auth/generative-language"]
 
 col_autopartes  = db["autopartes"]
 col_aftermarket = db["aftermarket"]
 col_articulos   = db["articulos_generados"]
 
+# ── Auth con service account ──────────────────────────────────────────────────
+
+def configurar_gemini():
+    credentials = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE,
+        scopes=SCOPES,
+    )
+    genai.configure(credentials=credentials)
+    return genai.GenerativeModel(MODELO)
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def traer_documentos(coleccion, cantidad: int) -> list[dict]:
     """Trae documentos que todavía no fueron usados para generar un artículo."""
-    docs = list(
+    return list(
         coleccion.find({"usado_para_articulo": {"$ne": True}}).limit(cantidad)
     )
-    return docs
 
 
 def marcar_usados(coleccion, ids: list) -> None:
-    """Marca los documentos como ya utilizados."""
-    coleccion.update_many(
-        {"_id": {"$in": ids}},
-        {"$set": {"usado_para_articulo": True}}
-    )
+    if ids:
+        coleccion.update_many(
+            {"_id": {"$in": ids}},
+            {"$set": {"usado_para_articulo": True}}
+        )
 
 
 def formatear_contexto(docs: list[dict], fuente: str) -> str:
-    """Convierte los documentos en texto legible para el prompt."""
     if not docs:
         return ""
-
     lineas = [f"\n── Fuente: {fuente} ──\n"]
     for doc in docs:
         titulo = doc.get("titulo", "(sin título)")
         cuerpo = doc.get("cuerpo", doc.get("bajada", "(sin contenido)"))
-        # Limitar el cuerpo a 1500 chars para no inflar el prompt
         cuerpo = cuerpo[:1500] + "..." if len(cuerpo) > 1500 else cuerpo
         lineas.append(f"Título: {titulo}\nContenido: {cuerpo}\n")
-
     return "\n".join(lineas)
 
 
-def generar_articulo(contexto: str) -> str:
-    """Llama a Gemini con el contexto y devuelve el artículo generado."""
-    genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel(MODELO)
-
+def generar_articulo(modelo, contexto: str) -> str:
     prompt = f"""
 Sos un redactor periodístico especializado en la industria automotriz y 
 el sector autopartista argentino.
@@ -84,27 +89,24 @@ Requisitos:
 Información disponible:
 {contexto}
 """
-
     respuesta = modelo.generate_content(prompt)
     return respuesta.text
 
 
 def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> None:
-    """Guarda el artículo generado en MongoDB."""
     col_articulos.insert_one({
-        "contenido": contenido,
-        "fuentes":   fuentes,
-        "docs_usados": [str(i) for i in ids_usados],
-        "generado_en": datetime.datetime.utcnow().isoformat(),
+        "contenido":     contenido,
+        "fuentes":       fuentes,
+        "docs_usados":   [str(i) for i in ids_usados],
+        "generado_en":   datetime.datetime.utcnow().isoformat(),
     })
-
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="Generador de artículos con IA")
     parser.add_argument("--fuente",   choices=["lanacion", "aftermarket", "ambas"], default="ambas")
-    parser.add_argument("--cantidad", type=int, default=3, help="Docs por fuente")
+    parser.add_argument("--cantidad", type=int, default=3)
     args = parser.parse_args()
 
     docs_lanacion    = []
@@ -123,23 +125,21 @@ def main():
         print("No hay documentos nuevos para procesar. Todos ya fueron usados.")
         return
 
-    # Armar contexto
     contexto = ""
-    if docs_lanacion:
-        contexto += formatear_contexto(docs_lanacion, "La Nacion")
-    if docs_aftermarket:
-        contexto += formatear_contexto(docs_aftermarket, "Mundo Aftermarket")
+    if docs_lanacion:    contexto += formatear_contexto(docs_lanacion, "La Nacion")
+    if docs_aftermarket: contexto += formatear_contexto(docs_aftermarket, "Mundo Aftermarket")
 
-    # Generar artículo
-    print("\nGenerando artículo con Gemini...")
-    articulo = generar_articulo(contexto)
+    print("\nAutenticando con Google Cloud...")
+    modelo = configurar_gemini()
+
+    print("Generando artículo con Gemini...")
+    articulo = generar_articulo(modelo, contexto)
 
     print("\n" + "="*60)
     print(articulo)
     print("="*60)
 
-    # Guardar en MongoDB y marcar docs como usados
-    ids = [doc["_id"] for doc in todos]
+    ids     = [doc["_id"] for doc in todos]
     fuentes = []
     if docs_lanacion:    fuentes.append("lanacion")
     if docs_aftermarket: fuentes.append("aftermarket")
