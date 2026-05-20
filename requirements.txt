@@ -2,3 +2,4 @@ scrapling[fetchers]
 pymongo[srv]
 flask
 google-generativeai
+google-auth

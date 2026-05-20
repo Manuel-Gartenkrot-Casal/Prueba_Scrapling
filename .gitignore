@@ -1,0 +1,15 @@
+# Credenciales y claves — nunca subir al repo
+config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Node
+express/node_modules/
+express/dist/
+
+# Data local
+data/
