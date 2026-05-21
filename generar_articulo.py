@@ -2,10 +2,10 @@
 generar_articulo.py
 
 Lee artículos scrapeados de MongoDB y genera un artículo
-periodístico usando Gemini. El artículo generado se guarda
-en la colección 'articulos_generados'.
+periodístico usando la API de NVIDIA. El artículo generado
+se guarda en la colección 'articulos_generados'.
 
-Requiere: archivo .env en la raíz con GEMINI_API_KEY=tu_clave
+Requiere: archivo .env en la raíz con NVIDIA_API_KEY=tu_clave
 
 Uso:
     python generar_articulo.py                     # usa ambas fuentes, 3 docs c/u
@@ -16,28 +16,22 @@ Uso:
 
 import argparse
 import datetime
+import json
 import os
+import requests
 from dotenv import load_dotenv
-from google import genai
 from db import db
 
 load_dotenv()
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-MODELO = "gemini-2.0-flash-lite"
+NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+MODELO         = "google/gemma-3n-e4b-it"
 
 col_autopartes  = db["autopartes"]
 col_aftermarket = db["aftermarket"]
 col_articulos   = db["articulos_generados"]
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
-def configurar_gemini():
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("Falta GEMINI_API_KEY en el archivo .env")
-    return genai.Client(api_key=api_key)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,12 +61,15 @@ def formatear_contexto(docs: list[dict], fuente: str) -> str:
     return "\n".join(lineas)
 
 
-def generar_articulo(client, contexto: str) -> str:
-    prompt = f"""
-Sos un redactor periodístico especializado en la industria automotriz y 
+def generar_articulo(contexto: str) -> str:
+    api_key = os.getenv("NVIDIA_API_KEY")
+    if not api_key:
+        raise ValueError("Falta NVIDIA_API_KEY en el archivo .env")
+
+    prompt = f"""Sos un redactor periodístico especializado en la industria automotriz y \
 el sector autopartista argentino.
 
-A partir de los siguientes artículos scrapeados de distintos medios,
+A partir de los siguientes artículos scrapeados de distintos medios, \
 escribí UN SOLO artículo de blog original, atractivo y bien estructurado.
 
 Requisitos:
@@ -85,10 +82,43 @@ Requisitos:
 - En español (Argentina)
 
 Información disponible:
-{contexto}
-"""
-    respuesta = client.models.generate_content(model=MODELO, contents=prompt)
-    return respuesta.text
+{contexto}"""
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "text/event-stream",
+    }
+    payload = {
+        "model": MODELO,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 1024,
+        "temperature": 0.70,
+        "top_p": 0.70,
+        "stream": True,
+    }
+
+    response = requests.post(NVIDIA_API_URL, headers=headers, json=payload, stream=True)
+    response.raise_for_status()
+
+    articulo = ""
+    for line in response.iter_lines():
+        if not line:
+            continue
+        text = line.decode("utf-8")
+        if text.startswith("data: "):
+            text = text[6:]
+        if text == "[DONE]":
+            break
+        try:
+            chunk = json.loads(text)
+            delta = chunk["choices"][0]["delta"].get("content", "")
+            articulo += delta
+            print(delta, end="", flush=True)
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    print()  # salto de línea final
+    return articulo
 
 
 def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> None:
@@ -102,7 +132,7 @@ def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> No
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Generador de artículos con IA")
+    parser = argparse.ArgumentParser(description="Generador de artículos con IA (NVIDIA)")
     parser.add_argument("--fuente",   choices=["lanacion", "aftermarket", "ambas"], default="ambas")
     parser.add_argument("--cantidad", type=int, default=3)
     args = parser.parse_args()
@@ -127,14 +157,8 @@ def main():
     if docs_lanacion:    contexto += formatear_contexto(docs_lanacion, "La Nacion")
     if docs_aftermarket: contexto += formatear_contexto(docs_aftermarket, "Mundo Aftermarket")
 
-    print("\nAutenticando con Gemini...")
-    client = configurar_gemini()
-
-    print("Generando artículo...")
-    articulo = generar_articulo(client, contexto)
-
-    print("\n" + "="*60)
-    print(articulo)
+    print("\nGenerando artículo...\n" + "="*60)
+    articulo = generar_articulo(contexto)
     print("="*60)
 
     ids     = [doc["_id"] for doc in todos]
