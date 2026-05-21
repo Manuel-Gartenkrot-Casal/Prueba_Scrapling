@@ -2,4 +2,4 @@ scrapling[fetchers]
 pymongo[srv]
 flask
 google-genai
-google-auth
+python-dotenv
