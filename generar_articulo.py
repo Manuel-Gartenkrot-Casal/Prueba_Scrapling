@@ -25,7 +25,7 @@ load_dotenv()
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-MODELO = "gemini-2.0-flash"
+MODELO = "gemini-1.5-flash"
 
 col_autopartes  = db["autopartes"]
 col_aftermarket = db["aftermarket"]
