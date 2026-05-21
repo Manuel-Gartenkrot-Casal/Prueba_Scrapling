@@ -5,7 +5,7 @@ Lee artículos scrapeados de MongoDB y genera un artículo
 periodístico usando Gemini. El artículo generado se guarda
 en la colección 'articulos_generados'.
 
-Requiere: config.json (service account de Google Cloud) en la raíz del proyecto.
+Requiere: archivo .env en la raíz con GEMINI_API_KEY=tu_clave
 
 Uso:
     python generar_articulo.py                     # usa ambas fuentes, 3 docs c/u
@@ -16,28 +16,28 @@ Uso:
 
 import argparse
 import datetime
+import os
+from dotenv import load_dotenv
 from google import genai
-from google.oauth2 import service_account
 from db import db
+
+load_dotenv()
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-SERVICE_ACCOUNT_FILE = "config.json"
-MODELO               = "gemini-2.0-flash"
-SCOPES               = ["https://www.googleapis.com/auth/generative-language"]
+MODELO = "gemini-2.0-flash"
 
 col_autopartes  = db["autopartes"]
 col_aftermarket = db["aftermarket"]
 col_articulos   = db["articulos_generados"]
 
-# ── Auth con service account ──────────────────────────────────────────────────
+# ── Auth ──────────────────────────────────────────────────────────────────────
 
 def configurar_gemini():
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE,
-        scopes=SCOPES,
-    )
-    return genai.Client(credentials=credentials)
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("Falta GEMINI_API_KEY en el archivo .env")
+    return genai.Client(api_key=api_key)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -127,10 +127,10 @@ def main():
     if docs_lanacion:    contexto += formatear_contexto(docs_lanacion, "La Nacion")
     if docs_aftermarket: contexto += formatear_contexto(docs_aftermarket, "Mundo Aftermarket")
 
-    print("\nAutenticando con Google Cloud...")
+    print("\nAutenticando con Gemini...")
     client = configurar_gemini()
 
-    print("Generando artículo con Gemini...")
+    print("Generando artículo...")
     articulo = generar_articulo(client, contexto)
 
     print("\n" + "="*60)
