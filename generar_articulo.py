@@ -16,14 +16,14 @@ Uso:
 
 import argparse
 import datetime
-import google.generativeai as genai
+from google import genai
 from google.oauth2 import service_account
 from db import db
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
 SERVICE_ACCOUNT_FILE = "config.json"
-MODELO               = "gemini-1.5-flash"
+MODELO               = "gemini-2.0-flash"
 SCOPES               = ["https://www.googleapis.com/auth/generative-language"]
 
 col_autopartes  = db["autopartes"]
@@ -37,13 +37,11 @@ def configurar_gemini():
         SERVICE_ACCOUNT_FILE,
         scopes=SCOPES,
     )
-    genai.configure(credentials=credentials)
-    return genai.GenerativeModel(MODELO)
+    return genai.Client(credentials=credentials)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def traer_documentos(coleccion, cantidad: int) -> list[dict]:
-    """Trae documentos que todavía no fueron usados para generar un artículo."""
     return list(
         coleccion.find({"usado_para_articulo": {"$ne": True}}).limit(cantidad)
     )
@@ -69,7 +67,7 @@ def formatear_contexto(docs: list[dict], fuente: str) -> str:
     return "\n".join(lineas)
 
 
-def generar_articulo(modelo, contexto: str) -> str:
+def generar_articulo(client, contexto: str) -> str:
     prompt = f"""
 Sos un redactor periodístico especializado en la industria automotriz y 
 el sector autopartista argentino.
@@ -89,16 +87,16 @@ Requisitos:
 Información disponible:
 {contexto}
 """
-    respuesta = modelo.generate_content(prompt)
+    respuesta = client.models.generate_content(model=MODELO, contents=prompt)
     return respuesta.text
 
 
 def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> None:
     col_articulos.insert_one({
-        "contenido":     contenido,
-        "fuentes":       fuentes,
-        "docs_usados":   [str(i) for i in ids_usados],
-        "generado_en":   datetime.datetime.utcnow().isoformat(),
+        "contenido":   contenido,
+        "fuentes":     fuentes,
+        "docs_usados": [str(i) for i in ids_usados],
+        "generado_en": datetime.datetime.utcnow().isoformat(),
     })
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -130,10 +128,10 @@ def main():
     if docs_aftermarket: contexto += formatear_contexto(docs_aftermarket, "Mundo Aftermarket")
 
     print("\nAutenticando con Google Cloud...")
-    modelo = configurar_gemini()
+    client = configurar_gemini()
 
     print("Generando artículo con Gemini...")
-    articulo = generar_articulo(modelo, contexto)
+    articulo = generar_articulo(client, contexto)
 
     print("\n" + "="*60)
     print(articulo)
