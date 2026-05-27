@@ -1,3 +1,5 @@
 scrapling[fetchers]
 pymongo[srv]
 flask
+requests
+python-dotenv
