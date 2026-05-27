@@ -7,6 +7,9 @@ db = client["PruebaScrapling"]
 
 col_lanacion    = db["autopartes"]    # artículos de La Nacion
 col_aftermarket = db["aftermarket"]   # artículos de Mundo Aftermarket
+col_ambito      = db["ambito"]        # artículos de Ambito Financiero
+col_cenital     = db["cenital"]       # artículos de Cenital
+col_perfil      = db["perfil"]        # artículos de Perfil
 
 
 def guardar_items(items, coleccion):
