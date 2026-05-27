@@ -8,10 +8,14 @@ se guarda en la colección 'articulos_generados'.
 Requiere: archivo .env en la raíz con NVIDIA_API_KEY=tu_clave
 
 Uso:
-    python generar_articulo.py                     # usa ambas fuentes, 3 docs c/u
-    python generar_articulo.py --fuente lanacion   # solo La Nacion
+    python generar_articulo.py                          # todas las fuentes, 3 docs c/u
+    python generar_articulo.py --fuente lanacion        # solo La Nacion
     python generar_articulo.py --fuente aftermarket
-    python generar_articulo.py --cantidad 5        # 5 docs por fuente
+    python generar_articulo.py --fuente ambito
+    python generar_articulo.py --fuente cenital
+    python generar_articulo.py --fuente perfil
+    python generar_articulo.py --fuente lanacion ambito # múltiples fuentes
+    python generar_articulo.py --cantidad 5             # 5 docs por fuente
 """
 
 import argparse
@@ -29,9 +33,15 @@ load_dotenv()
 NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELO         = "google/gemma-3n-e4b-it"
 
-col_autopartes  = db["autopartes"]
-col_aftermarket = db["aftermarket"]
-col_articulos   = db["articulos_generados"]
+FUENTES = {
+    "lanacion":    db["autopartes"],
+    "aftermarket": db["aftermarket"],
+    "ambito":      db["ambito"],
+    "cenital":     db["cenital"],
+    "perfil":      db["perfil"],
+}
+
+col_articulos = db["articulos_generados"]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -117,7 +127,7 @@ Información disponible:
         except (json.JSONDecodeError, KeyError):
             continue
 
-    print()  # salto de línea final
+    print()
     return articulo
 
 
@@ -133,42 +143,48 @@ def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> No
 
 def main():
     parser = argparse.ArgumentParser(description="Generador de artículos con IA (NVIDIA)")
-    parser.add_argument("--fuente",   choices=["lanacion", "aftermarket", "ambas"], default="ambas")
+    parser.add_argument(
+        "--fuente",
+        nargs="+",
+        choices=list(FUENTES.keys()),
+        default=list(FUENTES.keys()),
+        metavar="FUENTE",
+        help=f"Fuentes a usar: {', '.join(FUENTES.keys())}. Por defecto: todas.",
+    )
     parser.add_argument("--cantidad", type=int, default=3)
     args = parser.parse_args()
 
-    docs_lanacion    = []
-    docs_aftermarket = []
+    # Recolectar docs por fuente (guardamos la asociación para marcar usados correctamente)
+    docs_por_fuente: dict[str, list[dict]] = {}
+    for nombre in args.fuente:
+        docs = traer_documentos(FUENTES[nombre], args.cantidad)
+        print(f"{nombre:<12} {len(docs)} documentos")
+        if docs:
+            docs_por_fuente[nombre] = docs
 
-    if args.fuente in ("lanacion", "ambas"):
-        docs_lanacion = traer_documentos(col_autopartes, args.cantidad)
-        print(f"La Nacion:    {len(docs_lanacion)} documentos")
-
-    if args.fuente in ("aftermarket", "ambas"):
-        docs_aftermarket = traer_documentos(col_aftermarket, args.cantidad)
-        print(f"Aftermarket:  {len(docs_aftermarket)} documentos")
-
-    todos = docs_lanacion + docs_aftermarket
-    if not todos:
+    if not docs_por_fuente:
         print("No hay documentos nuevos para procesar. Todos ya fueron usados.")
         return
 
+    # Armar contexto
     contexto = ""
-    if docs_lanacion:    contexto += formatear_contexto(docs_lanacion, "La Nacion")
-    if docs_aftermarket: contexto += formatear_contexto(docs_aftermarket, "Mundo Aftermarket")
+    for nombre, docs in docs_por_fuente.items():
+        contexto += formatear_contexto(docs, nombre)
 
-    print("\nGenerando artículo...\n" + "="*60)
+    total = sum(len(d) for d in docs_por_fuente.values())
+    fuentes_usadas = list(docs_por_fuente.keys())
+    print(f"\nGenerando artículo con {total} documentos de {len(fuentes_usadas)} fuente/s...\n" + "="*60)
+
     articulo = generar_articulo(contexto)
     print("="*60)
 
-    ids     = [doc["_id"] for doc in todos]
-    fuentes = []
-    if docs_lanacion:    fuentes.append("lanacion")
-    if docs_aftermarket: fuentes.append("aftermarket")
+    # Guardar artículo
+    todos_ids = [doc["_id"] for docs in docs_por_fuente.values() for doc in docs]
+    guardar_articulo(articulo, todos_ids, fuentes_usadas)
 
-    guardar_articulo(articulo, ids, fuentes)
-    marcar_usados(col_autopartes,  [d["_id"] for d in docs_lanacion])
-    marcar_usados(col_aftermarket, [d["_id"] for d in docs_aftermarket])
+    # Marcar como usados en cada colección correspondiente
+    for nombre, docs in docs_por_fuente.items():
+        marcar_usados(FUENTES[nombre], [doc["_id"] for doc in docs])
 
     print(f"\n✅ Artículo guardado en la colección 'articulos_generados'.")
 
