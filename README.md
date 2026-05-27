@@ -132,6 +132,35 @@ Los datos se guardan en **MongoDB Atlas** en la base `PruebaScrapling`:
 
 La conexión está configurada en `db.py`. Los artículos no se duplican: se usa la URL como clave única.
 
+
+---
+
+## Generación de artículos con IA
+
+Lee los artículos scrapeados de MongoDB y genera un artículo periodístico con **Gemini**.
+
+### Configuración
+
+Copiá tu `config.json` (service account de Google Cloud) en la raíz del proyecto.
+
+### Uso
+
+```bash
+# Genera un artículo combinando ambas fuentes (3 docs c/u)
+python generar_articulo.py
+
+# Solo artículos de La Nacion
+python generar_articulo.py --fuente lanacion
+
+# Solo artículos de Aftermarket
+python generar_articulo.py --fuente aftermarket
+
+# Usar más documentos como base
+python generar_articulo.py --cantidad 5
+```
+
+El artículo se imprime en consola y se guarda en la colección `articulos_generados` de MongoDB. Cada documento fuente se marca como `usado_para_articulo: true` para no repetirlo.
+
 ---
 
 ## Agregar un spider nuevo
