@@ -7,6 +7,9 @@ app = Flask(__name__)
 SPIDERS = {
     "lanacion":    "runlanacion.py",
     "aftermarket": "runaftermarket.py",
+    "ambito":      "runambito.py",
+    "cenital":     "runcenital.py",
+    "perfil":      "runperfil.py",
 }
 
 
