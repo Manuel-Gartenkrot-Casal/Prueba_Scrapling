@@ -6,7 +6,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const SCRAPERS_URL = process.env.SCRAPERS_URL || 'http://scrapers:5000';
 
-const VALID_SPIDERS = ['lanacion', 'aftermarket'] as const;
+const VALID_SPIDERS = ['lanacion', 'aftermarket', 'ambito', 'cenital', 'perfil'] as const;
 type Spider = typeof VALID_SPIDERS[number];
 
 app.use(express.json());
