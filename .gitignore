@@ -1,3 +1,5 @@
+__pycache__/
+spiders/__pycache__/
 # Credenciales y claves — nunca subir al repo
 config.json
 
