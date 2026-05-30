@@ -1,100 +1,94 @@
-from scrapling.spiders import Spider, Request, Response
-from scrapling.fetchers import AsyncDynamicSession
+from scrapling.fetchers import StealthyFetcher
+
+# StealthyFetcher (camoufox) tarda ~30s por página. Limitamos cuántas notas
+# visitamos para no pasarnos del timeout de 10 min del API.
+MAX_ARTICULOS = 5
+
+# Frases típicas de muros de pago / navegación que no son cuerpo de la nota.
+BASURA = [
+    "Ya superaste el límite",
+    "Registrate gratis",
+    "Llamanos al",
+    "lunes a",
+    "Suscribite",
+    "Newsletter",
+]
 
 
-class AmbitoSpider(Spider):
+class _Result:
+    """Expone .items igual que los Spider del framework (lo usan los run*.py)."""
+    def __init__(self, items):
+        self.items = items
+
+
+def _texto(elemento):
+    if elemento is None:
+        return ""
+    return (elemento.get_all_text(strip=True) or "").strip()
+
+
+def _es_basura(texto: str) -> bool:
+    return any(b in texto for b in BASURA)
+
+
+class AmbitoSpider:
     """
-    Scrapea artículos de la sección Industria Automotriz de Ambito Financiero.
-    Usa AsyncDynamicSession (Playwright) porque el sitio requiere JS.
+    Scrapea la sección Industria Automotriz de Ambito Financiero.
+
+    Ambito tiene anti-bot: Fetcher y AsyncDynamicSession reciben un muro sin
+    contenido. StealthyFetcher (camoufox) lo esquiva y devuelve el HTML real,
+    así que lo usamos para el listado y para cada nota.
+
+    Listado: <article> con <h2><a href>titulo</a></h2>.
     """
     name = "ambito"
-    start_urls = ["https://www.ambito.com/industria-automotriz-a5127281"]
-    concurrent_requests = 3
+    start_url = "https://www.ambito.com/industria-automotriz-a5127281"
+    base = "https://www.ambito.com"
 
-    def configure_sessions(self, manager):
-        manager.add(
-            "default",
-            AsyncDynamicSession(
-                headless=True,
-                network_idle=True,
-                disable_resources=False,
-            ),
-        )
+    def start(self):
+        portada = StealthyFetcher.fetch(self.start_url, headless=True, network_idle=True)
 
-    async def parse(self, response: Response):
-        # Ambito lista artículos con <article> o con links con /nota/ en el href
-        selectors = [
-            "article a[href*='/nota/']::attr(href)",
-            "a[href*='/nota/']::attr(href)",
-            ".article-list a::attr(href)",
-            ".listing a[href*='/nota']::attr(href)",
-            "h2 a[href*='/nota']::attr(href)",
-            "h3 a[href*='/nota']::attr(href)",
-        ]
+        # 1) Links + títulos del listado (uno por <article>)
+        notas = []
+        vistos = set()
+        for art in portada.css("article"):
+            href = art.css("h2 a::attr(href)").get()
+            titulo = (art.css("h2 a::text").get() or "").strip()
+            if not href or not titulo:
+                continue
+            if href.startswith("/"):
+                href = self.base + href
+            if href in vistos:
+                continue
+            vistos.add(href)
+            notas.append({"titulo": titulo, "url": href})
 
-        links = []
-        for sel in selectors:
-            links = [l for l in response.css(sel).getall() if l]
-            if links:
-                break
+        # 2) Visitar cada nota y extraer el cuerpo. Si falla, igual guardamos
+        #    título + url para no perder el artículo.
+        items = []
+        for nota in notas[:MAX_ARTICULOS]:
+            fecha, cuerpo = "", ""
+            try:
+                pag = StealthyFetcher.fetch(nota["url"], headless=True, network_idle=True)
+                fecha = (
+                    pag.css("time::attr(datetime)").get()
+                    or pag.css("time::text").get()
+                    or ""
+                ).strip()
+                parrafos = [
+                    t for p in pag.css("p")
+                    if len(t := _texto(p)) > 40 and not _es_basura(t)
+                ]
+                cuerpo = " ".join(dict.fromkeys(parrafos))
+            except Exception:
+                pass
 
-        # Normalizar URLs relativas
-        seen = set()
-        for link in links:
-            if not link.startswith("http"):
-                link = "https://www.ambito.com" + link
-            if link not in seen:
-                seen.add(link)
-                yield Request(url=link, callback=self.parse_articulo)
+            items.append({
+                "titulo": nota["titulo"],
+                "fecha": fecha,
+                "cuerpo": cuerpo,
+                "url": nota["url"],
+                "fuente": self.name,
+            })
 
-        # Paginación: Ambito usa ?page=N o /page/N
-        import re
-        match = re.search(r"[?&]page=(\d+)", response.url)
-        if match:
-            next_page = int(match.group(1)) + 1
-        else:
-            next_page = 2
-
-        # Solo paginar si encontramos artículos en esta página
-        if links and next_page <= 5:
-            base = self.start_urls[0].split("?")[0]
-            yield Request(
-                url=f"{base}?page={next_page}",
-                callback=self.parse,
-            )
-
-    async def parse_articulo(self, response: Response):
-        title = (
-            response.css("h1.article-title::text").get()
-            or response.css("h1[class*='title']::text").get()
-            or response.css("h1::text").get()
-            or ""
-        ).strip()
-
-        date = (
-            response.css("time::attr(datetime)").get()
-            or response.css("time::text").get()
-            or response.css("[class*='date']::text").get()
-            or ""
-        ).strip()
-
-        parrafos = [
-            p.strip()
-            for p in response.css(
-                ".article-body p::text, "
-                "[class*='article-content'] p::text, "
-                "[class*='body'] p::text, "
-                "article p::text"
-            ).getall()
-            if len(p.strip()) > 30
-        ]
-
-        if not title:
-            return
-
-        yield {
-            "titulo": title,
-            "fecha": date,
-            "cuerpo": " ".join(parrafos),
-            "url": response.url,
-        }
+        return _Result(items)

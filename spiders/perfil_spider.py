@@ -1,121 +1,92 @@
-from scrapling.spiders import Spider, Request, Response
-from scrapling.fetchers import AsyncDynamicSession
+from scrapling.fetchers import StealthyFetcher
+
+# StealthyFetcher (camoufox) tarda ~30s por página. Limitamos cuántas notas
+# visitamos para no pasarnos del timeout de 10 min del API.
+MAX_ARTICULOS = 5
+
+BASURA = [
+    "Suscribite",
+    "Newsletter",
+    "Registrate",
+    "Seguinos",
+    "Compartir",
+]
 
 
-class PerfilSpider(Spider):
+class _Result:
+    """Expone .items igual que los Spider del framework (lo usan los run*.py)."""
+    def __init__(self, items):
+        self.items = items
+
+
+def _texto(elemento):
+    if elemento is None:
+        return ""
+    return (elemento.get_all_text(strip=True) or "").strip()
+
+
+def _es_basura(texto: str) -> bool:
+    return any(b in texto for b in BASURA)
+
+
+class PerfilSpider:
     """
-    Scrapea artículos sobre autopartes de Perfil.com.
-    El buscador usa Google Custom Search (carga con JS), por eso necesita
-    AsyncDynamicSession con network_idle=True.
+    Scrapea los resultados de búsqueda de "autopartes" en Perfil.
+
+    Perfil renderiza con JS y aplica anti-bot, así que usamos StealthyFetcher
+    (camoufox) para obtener el HTML real, tanto del listado como de cada nota.
+
+    Listado: <article class="sidebar-widget__article"> con el primer <a href>
+    como link y <h3> como título.
     """
     name = "perfil"
-    start_urls = [
-        "https://www.perfil.com/buscador?q=autopartes#gsc.tab=0&gsc.q=autopartes&gsc.page=1"
-    ]
-    concurrent_requests = 3
+    start_url = "https://www.perfil.com/buscador?q=autopartes"
+    base = "https://www.perfil.com"
 
-    def configure_sessions(self, manager):
-        manager.add(
-            "default",
-            AsyncDynamicSession(
-                headless=True,
-                network_idle=True,
-                disable_resources=False,
-            ),
-        )
+    def start(self):
+        portada = StealthyFetcher.fetch(self.start_url, headless=True, network_idle=True)
 
-    async def parse(self, response: Response):
-        """
-        Google Custom Search embebido: los resultados están en .gsc-result .gs-title a.
-        También intentamos selectores nativos de Perfil por si cambian la implementación.
-        """
-        # Selectores Google CSE (carga dinámica)
-        gsc_links = response.css(
-            ".gsc-result .gs-title a::attr(href), "
-            ".gsc-results .gsc-result a.gs-title::attr(href)"
-        ).getall()
-
-        # Selectores nativos de Perfil como fallback
-        perfil_links = response.css(
-            "a[href*='perfil.com/noticias']::attr(href), "
-            "a[href*='/noticias/']::attr(href), "
-            "h2 a::attr(href), h3 a::attr(href)"
-        ).getall()
-
-        links = gsc_links if gsc_links else perfil_links
-
-        # Filtrar solo URLs de Perfil y normalizar
-        seen = set()
-        for link in links:
-            # Google CSE a veces devuelve URLs con prefijo de redirección
-            if "perfil.com" not in link:
+        # 1) Links + títulos del listado (uno por <article>)
+        notas = []
+        vistos = set()
+        for art in portada.css("article"):
+            href = art.css("a::attr(href)").get()
+            titulo = (art.css("h3::text").get() or art.css("h2::text").get() or "").strip()
+            if not href or not titulo:
                 continue
-            # Limpiar parámetros de rastreo de Google
-            link = link.split("&")[0] if "?sa=" in link else link
-            if link not in seen:
-                seen.add(link)
-                yield Request(url=link, callback=self.parse_articulo)
+            if href.startswith("/"):
+                href = self.base + href
+            if href in vistos:
+                continue
+            vistos.add(href)
+            notas.append({"titulo": titulo, "url": href})
 
-        # Paginación Google CSE: página siguiente en `.gsc-cursor-page`
-        import re
+        # 2) Visitar cada nota y extraer el cuerpo. Si falla, igual guardamos
+        #    título + url para no perder el artículo.
+        items = []
+        for nota in notas[:MAX_ARTICULOS]:
+            fecha, cuerpo = "", ""
+            try:
+                pag = StealthyFetcher.fetch(nota["url"], headless=True, network_idle=True)
+                fecha = (
+                    pag.css("time::attr(datetime)").get()
+                    or pag.css("time::text").get()
+                    or ""
+                ).strip()
+                parrafos = [
+                    t for p in pag.css("p")
+                    if len(t := _texto(p)) > 40 and not _es_basura(t)
+                ]
+                cuerpo = " ".join(dict.fromkeys(parrafos))
+            except Exception:
+                pass
 
-        current_page_match = re.search(r"gsc\.page=(\d+)", response.url)
-        current_page = int(current_page_match.group(1)) if current_page_match else 1
+            items.append({
+                "titulo": nota["titulo"],
+                "fecha": fecha,
+                "cuerpo": cuerpo,
+                "url": nota["url"],
+                "fuente": self.name,
+            })
 
-        # Botón de siguiente página en Google CSE
-        next_btn = response.css(".gsc-cursor-next-page::attr(style)").get()
-        has_next = next_btn is None or "display:none" not in next_btn
-
-        if links and has_next and current_page <= 5:
-            next_page = current_page + 1
-            yield Request(
-                url=f"https://www.perfil.com/buscador?q=autopartes#gsc.tab=0&gsc.q=autopartes&gsc.page={next_page}",
-                callback=self.parse,
-            )
-
-    async def parse_articulo(self, response: Response):
-        title = (
-            response.css("h1.title-nota::text").get()
-            or response.css("h1[class*='title']::text").get()
-            or response.css("h1[class*='nota']::text").get()
-            or response.css("h1::text").get()
-            or ""
-        ).strip()
-
-        date = (
-            response.css("time::attr(datetime)").get()
-            or response.css("time::text").get()
-            or response.css("[class*='fecha']::text").get()
-            or response.css("[class*='date']::text").get()
-            or ""
-        ).strip()
-
-        author = (
-            response.css("[class*='author'] a::text").get()
-            or response.css("[class*='firma']::text").get()
-            or response.css(".byline::text").get()
-            or ""
-        ).strip()
-
-        parrafos = [
-            p.strip()
-            for p in response.css(
-                ".article-body p::text, "
-                ".nota-content p::text, "
-                "[class*='article-content'] p::text, "
-                "[class*='body-nota'] p::text, "
-                "article p::text"
-            ).getall()
-            if len(p.strip()) > 30
-        ]
-
-        if not title:
-            return
-
-        yield {
-            "titulo": title,
-            "fecha": date,
-            "autor": author,
-            "cuerpo": " ".join(parrafos),
-            "url": response.url,
-        }
+        return _Result(items)
