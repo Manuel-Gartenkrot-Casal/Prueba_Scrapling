@@ -19,9 +19,13 @@ RUN playwright install --with-deps chromium && \
 # Copiar código fuente
 COPY db.py .
 COPY seed_db.py .
+COPY flask_api.py .
+COPY generar_articulo.py .
 COPY runlanacion.py .
 COPY runaftermarket.py .
-COPY flask_api.py .
+COPY runambito.py .
+COPY runcenital.py .
+COPY runperfil.py .
 COPY spiders/ ./spiders/
 
 EXPOSE 5000

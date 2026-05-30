@@ -2,7 +2,7 @@
   "name": "scraping-dashboard",
   "version": "1.0.0",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/public', 'dist/public', {recursive: true})\"",
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js"
   },
