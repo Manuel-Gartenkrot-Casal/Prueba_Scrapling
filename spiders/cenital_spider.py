@@ -1,113 +1,92 @@
-from scrapling.spiders import Spider, Request, Response
-from scrapling.fetchers import AsyncDynamicSession
+from scrapling.fetchers import StealthyFetcher
+
+# StealthyFetcher (camoufox) tarda ~30s por página. Limitamos cuántas notas
+# visitamos para no pasarnos del timeout de 10 min del API.
+MAX_ARTICULOS = 5
+
+BASURA = [
+    "Suscribite",
+    "Newsletter",
+    "Registrate",
+    "Seguinos",
+    "Compartir",
+]
 
 
-class CenitalSpider(Spider):
+class _Result:
+    """Expone .items igual que los Spider del framework (lo usan los run*.py)."""
+    def __init__(self, items):
+        self.items = items
+
+
+def _texto(elemento):
+    if elemento is None:
+        return ""
+    return (elemento.get_all_text(strip=True) or "").strip()
+
+
+def _es_basura(texto: str) -> bool:
+    return any(b in texto for b in BASURA)
+
+
+class CenitalSpider:
     """
-    Scrapea artículos sobre autopartes de Cenital.com.
-    WordPress con búsqueda estándar + paginación tipo /page/N/.
-    Usa AsyncDynamicSession para esquivar bloqueos.
+    Scrapea los resultados de búsqueda de "autopartes" en Cenital (WordPress).
+
+    Cenital aplica anti-bot, así que usamos StealthyFetcher (camoufox) para
+    obtener el HTML real, tanto del listado como de cada nota.
+
+    Listado: <article class="post"> con el primer <a href> como link y
+    <h3 class="post__title"> como título.
     """
     name = "cenital"
-    start_urls = ["https://cenital.com/?s=autopartes"]
-    concurrent_requests = 3
+    start_url = "https://cenital.com/?s=autopartes"
+    base = "https://cenital.com"
 
-    def configure_sessions(self, manager):
-        manager.add(
-            "default",
-            AsyncDynamicSession(
-                headless=True,
-                network_idle=True,
-                disable_resources=False,
-            ),
-        )
+    def start(self):
+        portada = StealthyFetcher.fetch(self.start_url, headless=True, network_idle=True)
 
-    async def parse(self, response: Response):
-        # WordPress: artículos en <article> con links en h2/h3
-        link_selectors = [
-            "article h2 a::attr(href)",
-            "article h3 a::attr(href)",
-            ".entry-title a::attr(href)",
-            ".post-title a::attr(href)",
-            "h2.search-entry-title a::attr(href)",
-            ".search-results article a[rel='bookmark']::attr(href)",
-        ]
+        # 1) Links + títulos del listado (uno por <article>)
+        notas = []
+        vistos = set()
+        for art in portada.css("article"):
+            href = art.css("a::attr(href)").get()
+            titulo = (art.css("h3::text").get() or art.css("h2::text").get() or "").strip()
+            if not href or not titulo:
+                continue
+            if href.startswith("/"):
+                href = self.base + href
+            if href in vistos:
+                continue
+            vistos.add(href)
+            notas.append({"titulo": titulo, "url": href})
 
-        links = []
-        for sel in link_selectors:
-            links = response.css(sel).getall()
-            if links:
-                break
+        # 2) Visitar cada nota y extraer el cuerpo. Si falla, igual guardamos
+        #    título + url para no perder el artículo.
+        items = []
+        for nota in notas[:MAX_ARTICULOS]:
+            fecha, cuerpo = "", ""
+            try:
+                pag = StealthyFetcher.fetch(nota["url"], headless=True, network_idle=True)
+                fecha = (
+                    pag.css("time::attr(datetime)").get()
+                    or pag.css("time::text").get()
+                    or ""
+                ).strip()
+                parrafos = [
+                    t for p in pag.css("p")
+                    if len(t := _texto(p)) > 40 and not _es_basura(t)
+                ]
+                cuerpo = " ".join(dict.fromkeys(parrafos))
+            except Exception:
+                pass
 
-        seen = set()
-        for link in links:
-            if link and link not in seen:
-                seen.add(link)
-                yield Request(url=link, callback=self.parse_articulo)
+            items.append({
+                "titulo": nota["titulo"],
+                "fecha": fecha,
+                "cuerpo": cuerpo,
+                "url": nota["url"],
+                "fuente": self.name,
+            })
 
-        # Paginación WP: /?s=autopartes&paged=2 o /page/2/?s=autopartes
-        import re
-        match = re.search(r"[?&]paged=(\d+)", response.url)
-        current = int(match.group(1)) if match else 1
-
-        # Link explícito de "siguiente"
-        next_url = (
-            response.css("a.next-page-link::attr(href)").get()
-            or response.css("a.next::attr(href)").get()
-            or response.css("a[class*='next']::attr(href)").get()
-            or response.css(".nav-links a[class*='next']::attr(href)").get()
-        )
-
-        if next_url and links and current <= 10:
-            yield Request(url=next_url, callback=self.parse)
-        elif links and current <= 10:
-            next_page = current + 1
-            yield Request(
-                url=f"https://cenital.com/page/{next_page}/?s=autopartes",
-                callback=self.parse,
-            )
-
-    async def parse_articulo(self, response: Response):
-        title = (
-            response.css("h1.entry-title::text").get()
-            or response.css("h1.post-title::text").get()
-            or response.css("h1::text").get()
-            or ""
-        ).strip()
-
-        date = (
-            response.css("time::attr(datetime)").get()
-            or response.css("time::text").get()
-            or response.css(".entry-date::text").get()
-            or response.css(".posted-on::text").get()
-            or ""
-        ).strip()
-
-        author = (
-            response.css(".author a::text").get()
-            or response.css(".byline a::text").get()
-            or response.css("[class*='author']::text").get()
-            or ""
-        ).strip()
-
-        parrafos = [
-            p.strip()
-            for p in response.css(
-                ".entry-content p::text, "
-                ".post-content p::text, "
-                ".article-content p::text, "
-                "article .content p::text"
-            ).getall()
-            if len(p.strip()) > 30
-        ]
-
-        if not title:
-            return
-
-        yield {
-            "titulo": title,
-            "fecha": date,
-            "autor": author,
-            "cuerpo": " ".join(parrafos),
-            "url": response.url,
-        }
+        return _Result(items)
