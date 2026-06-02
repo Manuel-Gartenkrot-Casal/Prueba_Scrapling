@@ -33,6 +33,34 @@ app.post('/api/run/:spider', async (req: Request, res: Response): Promise<void> 
   }
 });
 
+// Corre TODOS los spiders de una sola vez
+app.post('/api/run-all', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/run-all`, {}, {
+      timeout: 3_300_000, // 55 min (5 spiders x 10 min internos + margen)
+    });
+    res.json(data);
+  } catch (err) {
+    const axiosErr = err as AxiosError<{ error: string }>;
+    const message = axiosErr.response?.data?.error ?? 'No se pudo conectar con el servicio de scrapers.';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+// Genera el artículo reescrito por la IA
+app.post('/api/generar', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/generar`, {}, {
+      timeout: 660_000, // 11 min
+    });
+    res.json(data);
+  } catch (err) {
+    const axiosErr = err as AxiosError<{ error: string }>;
+    const message = axiosErr.response?.data?.error ?? 'No se pudo conectar con el servicio de scrapers.';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
 // Health check de ambos servicios
 app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
   try {

@@ -47,6 +47,30 @@ def run(spider: str):
     return jsonify(result), status
 
 
+@app.route("/run-all", methods=["POST"])
+def run_all():
+    """Corre todos los spiders en secuencia y junta la salida de cada uno."""
+    salidas = []
+    ok_global = True
+    for nombre, script in SPIDERS.items():
+        r = run_spider(script)
+        estado = "OK" if r["success"] else "ERROR"
+        cuerpo = r["output"] if r["success"] else (r["error"] or r["output"])
+        salidas.append(f"{'='*60}\n  {nombre.upper()}  [{estado}]\n{'='*60}\n{cuerpo}")
+        if not r["success"]:
+            ok_global = False
+
+    return jsonify({"success": ok_global, "output": "\n\n".join(salidas)}), (200 if ok_global else 500)
+
+
+@app.route("/generar", methods=["POST"])
+def generar():
+    """Genera el artículo reescrito por la IA a partir de lo scrapeado."""
+    result = run_spider("generar_articulo.py")
+    status = 200 if result["success"] else 500
+    return jsonify(result), status
+
+
 # Para agregar un spider nuevo:
 #   1. Crear spiders/nuevo_spider.py
 #   2. Crear runnuevo.py

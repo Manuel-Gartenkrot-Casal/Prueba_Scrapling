@@ -53,6 +53,32 @@
     button:hover    { opacity: .82; }
     button:disabled { opacity: .25; cursor: not-allowed; }
 
+    /* Acciones globales destacadas */
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+
+    .btn-big {
+      padding: 12px 24px;
+      font-size: 0.9rem;
+      border-radius: 8px;
+    }
+
+    .btn-all {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #fff;
+      box-shadow: 0 0 0 1px #2563eb55;
+    }
+
+    .btn-ai {
+      background: linear-gradient(135deg, #9333ea, #6d28d9);
+      color: #fff;
+      box-shadow: 0 0 0 1px #9333ea55;
+    }
+
     .badge {
       font-size: 0.75rem;
       padding: 3px 9px;
@@ -94,6 +120,13 @@
     <h1>Scraping Dashboard</h1>
     <p>Corré los spiders y guardá los resultados directo en MongoDB.</p>
   </header>
+
+  <div class="actions">
+    <button class="btn-big btn-all" id="btn-all" onclick="runAll()">⚡ Scrapear todos los artículos</button>
+    <span class="badge" id="badge-all"></span>
+    <button class="btn-big btn-ai" id="btn-generar" onclick="generar()">✨ Generar artículos con IA</button>
+    <span class="badge" id="badge-generar"></span>
+  </div>
 
   <div class="grid">
 
@@ -182,6 +215,47 @@
       } finally {
         document.querySelectorAll('button').forEach(b => b.disabled = false);
       }
+    }
+
+    // Acción genérica para los botones globales (scrapear todos / generar IA)
+    async function accionGlobal(endpoint, badgeId, mensajeInicial) {
+      const badge  = document.getElementById(badgeId);
+      const output = document.getElementById('output');
+
+      document.querySelectorAll('button').forEach(b => b.disabled = true);
+
+      badge.className   = 'badge running';
+      badge.textContent = 'Corriendo...';
+      output.textContent = mensajeInicial;
+
+      try {
+        const res  = await fetch(endpoint, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          badge.className   = 'badge ok';
+          badge.textContent = '✓ Completado';
+          output.textContent = data.output || '(sin output)';
+        } else {
+          badge.className   = 'badge error';
+          badge.textContent = '✗ Error';
+          output.textContent = data.error || data.output || 'Error desconocido.';
+        }
+      } catch (err) {
+        badge.className   = 'badge error';
+        badge.textContent = '✗ Conexión fallida';
+        output.textContent = String(err);
+      } finally {
+        document.querySelectorAll('button').forEach(b => b.disabled = false);
+      }
+    }
+
+    function runAll() {
+      accionGlobal('/api/run-all', 'badge-all', 'Scrapeando todas las fuentes...\nEsto puede tardar varios minutos.\n');
+    }
+
+    function generar() {
+      accionGlobal('/api/generar', 'badge-generar', 'Generando artículo con IA a partir de lo scrapeado...\n');
     }
   </script>
 
