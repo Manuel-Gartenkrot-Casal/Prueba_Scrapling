@@ -12,6 +12,18 @@ type Spider = typeof VALID_SPIDERS[number];
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Saca el mensaje útil de un error de axios. Flask puede responder con `error`
+// (fallos simples) o con `output` (el detalle de cada spider en /run-all), así
+// que probamos ambos antes de caer al genérico de conexión.
+function extraerError(err: unknown): string {
+  const axiosErr = err as AxiosError<{ error?: string; output?: string }>;
+  return (
+    axiosErr.response?.data?.error ||
+    axiosErr.response?.data?.output ||
+    'No se pudo conectar con el servicio de scrapers.'
+  );
+}
+
 // Dispara un spider llamando al servicio Python
 app.post('/api/run/:spider', async (req: Request, res: Response): Promise<void> => {
   const spider = req.params.spider as Spider;
@@ -27,9 +39,7 @@ app.post('/api/run/:spider', async (req: Request, res: Response): Promise<void> 
     });
     res.json(data);
   } catch (err) {
-    const axiosErr = err as AxiosError<{ error: string }>;
-    const message = axiosErr.response?.data?.error ?? 'No se pudo conectar con el servicio de scrapers.';
-    res.status(500).json({ success: false, error: message });
+    res.status(500).json({ success: false, error: extraerError(err) });
   }
 });
 
@@ -37,13 +47,11 @@ app.post('/api/run/:spider', async (req: Request, res: Response): Promise<void> 
 app.post('/api/run-all', async (_req: Request, res: Response): Promise<void> => {
   try {
     const { data } = await axios.post(`${SCRAPERS_URL}/run-all`, {}, {
-      timeout: 3_300_000, // 55 min (5 spiders x 10 min internos + margen)
+      timeout: 1_800_000, // 30 min (5 spiders en serie x 5 min internos + margen)
     });
     res.json(data);
   } catch (err) {
-    const axiosErr = err as AxiosError<{ error: string }>;
-    const message = axiosErr.response?.data?.error ?? 'No se pudo conectar con el servicio de scrapers.';
-    res.status(500).json({ success: false, error: message });
+    res.status(500).json({ success: false, error: extraerError(err) });
   }
 });
 
@@ -55,9 +63,7 @@ app.post('/api/generar', async (_req: Request, res: Response): Promise<void> => 
     });
     res.json(data);
   } catch (err) {
-    const axiosErr = err as AxiosError<{ error: string }>;
-    const message = axiosErr.response?.data?.error ?? 'No se pudo conectar con el servicio de scrapers.';
-    res.status(500).json({ success: false, error: message });
+    res.status(500).json({ success: false, error: extraerError(err) });
   }
 });
 

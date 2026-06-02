@@ -19,7 +19,7 @@ def run_spider(script: str) -> dict:
             [sys.executable, script],
             capture_output=True,
             text=True,
-            timeout=600,  # 10 min máx por spider
+            timeout=300,  # 5 min máx por spider (con recursos bloqueados sobra)
         )
         return {
             "success": result.returncode == 0,
@@ -27,7 +27,7 @@ def run_spider(script: str) -> dict:
             "error":  result.stderr if result.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "output": "", "error": "Timeout: el spider tardó más de 10 minutos."}
+        return {"success": False, "output": "", "error": "Timeout: el spider tardó más de 5 minutos."}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}
 
@@ -49,7 +49,13 @@ def run(spider: str):
 
 @app.route("/run-all", methods=["POST"])
 def run_all():
-    """Corre todos los spiders en secuencia y junta la salida de cada uno."""
+    """Corre los spiders uno por uno y junta la salida de cada uno.
+
+    Secuencial a propósito: cada spider levanta su propio navegador, y correr
+    varios a la vez genera contención de CPU/RAM que hace que algunos se cuelguen
+    hasta el timeout. Como ahora bloqueamos recursos y cada spider tarda pocos
+    segundos, en serie el total queda en un par de minutos y nunca falla por carga.
+    """
     salidas = []
     ok_global = True
     for nombre, script in SPIDERS.items():

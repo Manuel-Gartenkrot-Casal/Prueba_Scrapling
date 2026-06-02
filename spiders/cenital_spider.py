@@ -1,8 +1,12 @@
 from scrapling.fetchers import StealthyFetcher
 
-# StealthyFetcher (camoufox) tarda ~30s por página. Limitamos cuántas notas
-# visitamos para no pasarnos del timeout de 10 min del API.
-MAX_ARTICULOS = 5
+# StealthyFetcher (camoufox) es pesado. Bloqueamos recursos (imágenes, css,
+# fuentes, video) y evitamos network_idle para que cada página cargue en
+# segundos en vez de ~30s. Igual limitamos cuántas notas visitamos.
+MAX_ARTICULOS = 3
+
+# Parámetros comunes para todas las descargas: rápido y liviano en RAM.
+FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 25000}
 
 BASURA = [
     "Suscribite",
@@ -44,7 +48,7 @@ class CenitalSpider:
     base = "https://cenital.com"
 
     def start(self):
-        portada = StealthyFetcher.fetch(self.start_url, headless=True, network_idle=True)
+        portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
 
         # 1) Links + títulos del listado (uno por <article>)
         notas = []
@@ -67,7 +71,7 @@ class CenitalSpider:
         for nota in notas[:MAX_ARTICULOS]:
             fecha, cuerpo = "", ""
             try:
-                pag = StealthyFetcher.fetch(nota["url"], headless=True, network_idle=True)
+                pag = StealthyFetcher.fetch(nota["url"], **FETCH_OPTS)
                 fecha = (
                     pag.css("time::attr(datetime)").get()
                     or pag.css("time::text").get()
