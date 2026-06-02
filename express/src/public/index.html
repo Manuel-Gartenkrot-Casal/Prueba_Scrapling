@@ -53,16 +53,65 @@
     button:hover    { opacity: .82; }
     button:disabled { opacity: .25; cursor: not-allowed; }
 
-    .badge {
-      font-size: 0.75rem;
-      padding: 3px 9px;
-      border-radius: 20px;
-      border: 1px solid transparent;
-      display: none;
+    /* Acciones globales destacadas */
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 40px;
     }
-    .badge.running { display: inline; background: #1a1500; border-color: #f0a500; color: #f0a500; }
-    .badge.ok      { display: inline; background: #0a1a0a; border-color: #4caf50; color: #4caf50; }
-    .badge.error   { display: inline; background: #1a0a0a; border-color: #f44336; color: #f44336; }
+
+    .btn-big {
+      padding: 12px 24px;
+      font-size: 0.9rem;
+      border-radius: 8px;
+    }
+
+    .btn-all,
+    .btn-ai {
+      background: #1e1e1e;
+      color: #e0e0e0;
+      border: 1px solid #333;
+      box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+
+    .btn-all:hover,
+    .btn-ai:hover {
+      background: #2a2a2a;
+      border-color: #444;
+      opacity: 1;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      line-height: 1;
+      white-space: nowrap;
+      display: none;
+      align-items: center;
+      gap: 7px;
+    }
+    .badge.running,
+    .badge.ok,
+    .badge.error  { display: inline-flex; }
+    .badge.running { background: rgba(240,165,0,.12); border-color: rgba(240,165,0,.45); color: #f0b429; }
+    .badge.ok      { background: rgba(76,175,80,.12); border-color: rgba(76,175,80,.45); color: #66bb6a; }
+    .badge.error   { background: rgba(244,67,54,.12); border-color: rgba(244,67,54,.45); color: #ef5350; }
+
+    /* Puntito que pulsa mientras un proceso está corriendo */
+    .badge.running::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
 
     .log-section h2 {
       font-size: 0.72rem;
@@ -94,6 +143,13 @@
     <h1>Scraping Dashboard</h1>
     <p>Corré los spiders y guardá los resultados directo en MongoDB.</p>
   </header>
+
+  <div class="actions">
+    <button class="btn-big btn-all" id="btn-all" onclick="runAll()">Scrapear todos los artículos</button>
+    <span class="badge" id="badge-all"></span>
+    <button class="btn-big btn-ai" id="btn-generar" onclick="generar()">Generar artículos con IA</button>
+    <span class="badge" id="badge-generar"></span>
+  </div>
 
   <div class="grid">
 
@@ -182,6 +238,47 @@
       } finally {
         document.querySelectorAll('button').forEach(b => b.disabled = false);
       }
+    }
+
+    // Acción genérica para los botones globales (scrapear todos / generar IA)
+    async function accionGlobal(endpoint, badgeId, mensajeInicial) {
+      const badge  = document.getElementById(badgeId);
+      const output = document.getElementById('output');
+
+      document.querySelectorAll('button').forEach(b => b.disabled = true);
+
+      badge.className   = 'badge running';
+      badge.textContent = 'Corriendo...';
+      output.textContent = mensajeInicial;
+
+      try {
+        const res  = await fetch(endpoint, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          badge.className   = 'badge ok';
+          badge.textContent = '✓ Completado';
+          output.textContent = data.output || '(sin output)';
+        } else {
+          badge.className   = 'badge error';
+          badge.textContent = '✗ Error';
+          output.textContent = data.error || data.output || 'Error desconocido.';
+        }
+      } catch (err) {
+        badge.className   = 'badge error';
+        badge.textContent = '✗ Conexión fallida';
+        output.textContent = String(err);
+      } finally {
+        document.querySelectorAll('button').forEach(b => b.disabled = false);
+      }
+    }
+
+    function runAll() {
+      accionGlobal('/api/run-all', 'badge-all', 'Scrapeando todas las fuentes...\nEsto puede tardar varios minutos.\n');
+    }
+
+    function generar() {
+      accionGlobal('/api/generar', 'badge-generar', 'Generando artículo con IA a partir de lo scrapeado...\n');
     }
   </script>
 

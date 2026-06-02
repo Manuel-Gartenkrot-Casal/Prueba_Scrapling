@@ -19,7 +19,7 @@ def run_spider(script: str) -> dict:
             [sys.executable, script],
             capture_output=True,
             text=True,
-            timeout=600,  # 10 min máx por spider
+            timeout=300,  # 5 min máx por spider (con recursos bloqueados sobra)
         )
         return {
             "success": result.returncode == 0,
@@ -27,7 +27,7 @@ def run_spider(script: str) -> dict:
             "error":  result.stderr if result.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "output": "", "error": "Timeout: el spider tardó más de 10 minutos."}
+        return {"success": False, "output": "", "error": "Timeout: el spider tardó más de 5 minutos."}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}
 
@@ -43,6 +43,36 @@ def run(spider: str):
         return jsonify({"success": False, "error": f"Spider '{spider}' no existe."}), 400
 
     result = run_spider(SPIDERS[spider])
+    status = 200 if result["success"] else 500
+    return jsonify(result), status
+
+
+@app.route("/run-all", methods=["POST"])
+def run_all():
+    """Corre los spiders uno por uno y junta la salida de cada uno.
+
+    Secuencial a propósito: cada spider levanta su propio navegador, y correr
+    varios a la vez genera contención de CPU/RAM que hace que algunos se cuelguen
+    hasta el timeout. Como ahora bloqueamos recursos y cada spider tarda pocos
+    segundos, en serie el total queda en un par de minutos y nunca falla por carga.
+    """
+    salidas = []
+    ok_global = True
+    for nombre, script in SPIDERS.items():
+        r = run_spider(script)
+        estado = "OK" if r["success"] else "ERROR"
+        cuerpo = r["output"] if r["success"] else (r["error"] or r["output"])
+        salidas.append(f"{'='*60}\n  {nombre.upper()}  [{estado}]\n{'='*60}\n{cuerpo}")
+        if not r["success"]:
+            ok_global = False
+
+    return jsonify({"success": ok_global, "output": "\n\n".join(salidas)}), (200 if ok_global else 500)
+
+
+@app.route("/generar", methods=["POST"])
+def generar():
+    """Genera el artículo reescrito por la IA a partir de lo scrapeado."""
+    result = run_spider("generar_articulo.py")
     status = 200 if result["success"] else 500
     return jsonify(result), status
 

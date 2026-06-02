@@ -1,5 +1,14 @@
-import re
-from scrapling.spiders import Spider, Request, Response
+from scrapling.fetchers import StealthyFetcher
+
+# Usamos StealthyFetcher (camoufox) igual que el resto de los spiders: evita el
+# bloqueo por JS de mundoaftermarket y no se cuelga. Bloqueamos recursos y
+# evitamos network_idle para que cada página cargue en segundos.
+# Antes este spider paginaba en loop (/page/N) y podía no terminar nunca; ahora
+# tomamos solo la primera página y limitamos la cantidad de notas.
+MAX_ARTICULOS = 3
+
+# Parámetros comunes para todas las descargas: rápido y liviano en RAM.
+FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 25000}
 
 BASURA = [
     "Un sitio multimedia integral",
@@ -10,41 +19,64 @@ BASURA = [
     "Correo electrónico *",
 ]
 
-def limpiar(texto: str) -> str:
-    texto = texto.replace("\xa0", " ").strip()
-    if any(b in texto for b in BASURA):
+
+class _Result:
+    """Expone .items igual que los Spider del framework (lo usan los run*.py)."""
+    def __init__(self, items):
+        self.items = items
+
+
+def _texto(elemento):
+    if elemento is None:
         return ""
-    return texto
+    return (elemento.get_all_text(strip=True) or "").strip()
 
-class AftermarketSpider(Spider):
+
+def _es_basura(texto: str) -> bool:
+    return any(b in texto for b in BASURA)
+
+
+class AftermarketSpider:
+    """
+    Scrapea la sección /mercado de Mundo Aftermarket.
+
+    Listado: <h3><a href>titulo</a></h3>.
+    """
     name = "aftermarket"
-    start_urls = ["https://mundoaftermarket.com/mercado/"]
-    concurrent_requests = 5
+    start_url = "https://mundoaftermarket.com/mercado/"
 
-    async def parse(self, response: Response):
-        links = response.css('h3 a::attr(href)').getall()
+    def start(self):
+        portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
 
-        # Scrapea los artículos de la página actual
-        for link in links:
-            yield Request(url=link, callback=self.parse_articulo)
+        notas = []
+        vistos = set()
+        for href in portada.css("h3 a::attr(href)").getall():
+            if not href or href in vistos:
+                continue
+            vistos.add(href)
+            notas.append(href)
 
-        # Si había artículos, va a la siguiente página
-        if links:
-            match = re.search(r'/page/(\d+)', response.url)
-            siguiente = int(match.group(1)) + 1 if match else 2
-            yield Request(
-                url=f"https://mundoaftermarket.com/mercado/page/{siguiente}/",
-                callback=self.parse
-            )
+        items = []
+        for url in notas[:MAX_ARTICULOS]:
+            titulo, bajada, cuerpo = "", "", ""
+            try:
+                pag = StealthyFetcher.fetch(url, **FETCH_OPTS)
+                titulo = (pag.css("h1::text").get() or "").strip()
+                bajada = (pag.css("h3::text").get() or "").strip()
+                parrafos = [
+                    t for p in pag.css("p")
+                    if len(t := _texto(p)) > 30 and not _es_basura(t)
+                ]
+                cuerpo = " ".join(dict.fromkeys(parrafos))
+            except Exception:
+                pass
 
-    async def parse_articulo(self, response: Response):
-        parrafos = [
-            limpiar(p) for p in response.css('p::text').getall()
-            if len(p.strip()) > 30
-        ]
-        yield {
-            "titulo": response.css('h1::text').get("").strip(),
-            "bajada": response.css('h3::text').get("").strip(),
-            "cuerpo": " ".join(p for p in parrafos if p),
-            "url":    response.url,
-        }
+            items.append({
+                "titulo": titulo,
+                "bajada": bajada,
+                "cuerpo": cuerpo,
+                "url": url,
+                "fuente": self.name,
+            })
+
+        return _Result(items)

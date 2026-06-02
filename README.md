@@ -43,7 +43,13 @@ La primera build tarda varios minutos porque descarga e instala Chromium dentro 
 http://localhost:3000
 ```
 
-Desde ahí podés correr cada spider con un botón. Los resultados se guardan directo en MongoDB.
+Desde ahí podés:
+
+- Correr cada spider individualmente con su botón.
+- **⚡ Scrapear todos los artículos** — corre las 5 fuentes de una sola vez.
+- **✨ Generar artículos con IA** — reescribe lo scrapeado con la IA y muestra el resultado en el Output.
+
+Los resultados se guardan directo en MongoDB.
 
 ### Detener los contenedores
 
