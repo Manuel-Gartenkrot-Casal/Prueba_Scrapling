@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     environment:
       - PYTHONUNBUFFERED=1
+    env_file:
+      - .env          # inyecta NVIDIA_API_KEY para generar_articulo.py
     networks:
       - app
 

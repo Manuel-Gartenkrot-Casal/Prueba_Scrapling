@@ -147,7 +147,7 @@
   <div class="actions">
     <button class="btn-big btn-all" id="btn-all" onclick="runAll()">Scrapear todos los artículos</button>
     <span class="badge" id="badge-all"></span>
-    <button class="btn-big btn-ai" id="btn-generar" onclick="generar()">Generar artículos con IA</button>
+    <button class="btn-big btn-ai" id="btn-generar" onclick="generar()" disabled title="Primero scrapeá artículos">Generar artículos con IA</button>
     <span class="badge" id="badge-generar"></span>
   </div>
 
@@ -226,6 +226,7 @@
           badge.className   = 'badge ok';
           badge.textContent = '✓ Completado';
           output.textContent = data.output || '(sin output)';
+          marcarScrapingHecho();   // ya hay artículos: habilitamos la generación con IA
         } else {
           badge.className   = 'badge error';
           badge.textContent = '✗ Error';
@@ -237,11 +238,12 @@
         output.textContent = String(err);
       } finally {
         document.querySelectorAll('button').forEach(b => b.disabled = false);
+        refrescarBotonIA();
       }
     }
 
     // Acción genérica para los botones globales (scrapear todos / generar IA)
-    async function accionGlobal(endpoint, badgeId, mensajeInicial) {
+    async function accionGlobal(endpoint, badgeId, mensajeInicial, esScraping = false) {
       const badge  = document.getElementById(badgeId);
       const output = document.getElementById('output');
 
@@ -259,6 +261,7 @@
           badge.className   = 'badge ok';
           badge.textContent = '✓ Completado';
           output.textContent = data.output || '(sin output)';
+          if (esScraping) marcarScrapingHecho();   // habilita el botón de IA
         } else {
           badge.className   = 'badge error';
           badge.textContent = '✗ Error';
@@ -270,16 +273,33 @@
         output.textContent = String(err);
       } finally {
         document.querySelectorAll('button').forEach(b => b.disabled = false);
+        refrescarBotonIA();
       }
     }
 
     function runAll() {
-      accionGlobal('/api/run-all', 'badge-all', 'Scrapeando todas las fuentes...\nEsto puede tardar varios minutos.\n');
+      accionGlobal('/api/run-all', 'badge-all', 'Scrapeando todas las fuentes...\nEsto puede tardar varios minutos.\n', true);
     }
 
     function generar() {
       accionGlobal('/api/generar', 'badge-generar', 'Generando artículo con IA a partir de lo scrapeado...\n');
     }
+
+    // ── Habilitar "Generar con IA" recién después de scrapear ──────────────────
+    function marcarScrapingHecho() {
+      localStorage.setItem('hayScraping', '1');
+    }
+
+    // Habilita/deshabilita el botón de IA según si ya se scrapeó algo en esta máquina.
+    function refrescarBotonIA() {
+      const btn = document.getElementById('btn-generar');
+      const hay = localStorage.getItem('hayScraping') === '1';
+      btn.disabled = !hay;
+      btn.title = hay ? '' : 'Primero scrapeá artículos';
+    }
+
+    // Al cargar la página, respetar el estado guardado.
+    refrescarBotonIA();
   </script>
 
 </body>
