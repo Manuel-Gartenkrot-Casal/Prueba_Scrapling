@@ -1,6 +1,11 @@
-from pymongo import MongoClient
+import datetime
+import os
+from pymongo import MongoClient, ReplaceOne
+from dotenv import load_dotenv
 
-MONGO_URI = "mongodb+srv://48792944_db_user:3J7mqbFWfQ9EmdCh@pruebascrapling.uo6x74d.mongodb.net/?appName=PruebaScrapling"
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/PruebaScrapling")
 
 client = MongoClient(MONGO_URI)
 db = client["PruebaScrapling"]
@@ -15,15 +20,69 @@ col_perfil      = db["perfil"]        # artículos de Perfil
 def guardar_items(items, coleccion):
     """
     Inserta una lista de dicts en la colección indicada.
-    Usa update_replace con upsert=True sobre 'url' para evitar duplicados.
+    Usa ReplaceOne con upsert=True sobre 'url' para evitar duplicados.
     """
     if not items:
         return 0
 
-    from pymongo import ReplaceOne
     operaciones = [
         ReplaceOne({"url": item["url"]}, item, upsert=True)
         for item in items
     ]
     resultado = coleccion.bulk_write(operaciones)
     return resultado.upserted_count + resultado.modified_count
+
+
+def clasificar_y_guardar(items, coleccion, clasificador_fn):
+    """
+    Clasifica cada item usando clasificador_fn y guarda solo los aprobados.
+    Los rechazados se persisten en la colección 'articulos_descartados' para auditoría.
+
+    clasificador_fn(titulo, cuerpo) -> {"aprobado": bool, "razon": str}
+    Returns:
+        {"total": int, "aprobados": int, "rechazados": int, "detalles": list[dict]}
+    """
+    if not items:
+        return {"total": 0, "aprobados": 0, "rechazados": 0, "detalles": []}
+
+    col_descartados = db["articulos_descartados"]
+    aprobados = []
+    detalles = []
+
+    for item in items:
+        titulo = item.get("titulo", "(sin título)")
+        cuerpo = item.get("cuerpo", item.get("bajada", ""))
+
+        resultado = clasificador_fn(titulo, cuerpo)
+
+        if resultado["aprobado"]:
+            aprobados.append(item)
+            detalles.append({"titulo": titulo, "estado": "aprobado"})
+        else:
+            col_descartados.insert_one({
+                "url":             item.get("url", ""),
+                "titulo":          titulo,
+                "cuerpo":          cuerpo,
+                "fuente":          item.get("fuente", ""),
+                "razon":           resultado.get("razon", ""),
+                "fecha_descarte":  datetime.datetime.utcnow().isoformat(),
+            })
+            detalles.append({
+                "titulo": titulo,
+                "estado": "rechazado",
+                "razon":  resultado.get("razon", ""),
+            })
+
+    if aprobados:
+        operaciones = [
+            ReplaceOne({"url": item["url"]}, {**item, "usado_para_articulo": False}, upsert=True)
+            for item in aprobados
+        ]
+        coleccion.bulk_write(operaciones)
+
+    return {
+        "total":      len(items),
+        "aprobados":  len(aprobados),
+        "rechazados": len(items) - len(aprobados),
+        "detalles":   detalles,
+    }

@@ -37,6 +37,10 @@
     .card .spider { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 20px; }
 
     .card .row { display: flex; align-items: center; gap: 12px; }
+    .card .stats-line { font-size: 0.72rem; color: #555; margin-top: 12px; padding-top: 10px; border-top: 1px solid #1e1e1e; }
+    .card .stats-line .num   { font-weight: 600; }
+    .card .stats-line .ok    { color: #66bb6a; }
+    .card .stats-line .err   { color: #ef5350; }
 
     button {
       background: #fff;
@@ -160,6 +164,7 @@
         <button id="btn-lanacion" onclick="run('lanacion')">Correr</button>
         <span class="badge" id="badge-lanacion"></span>
       </div>
+      <div class="stats-line" id="stats-lanacion"></div>
     </div>
 
     <div class="card">
@@ -169,6 +174,7 @@
         <button id="btn-aftermarket" onclick="run('aftermarket')">Correr</button>
         <span class="badge" id="badge-aftermarket"></span>
       </div>
+      <div class="stats-line" id="stats-aftermarket"></div>
     </div>
 
     <div class="card">
@@ -178,6 +184,7 @@
         <button id="btn-ambito" onclick="run('ambito')">Correr</button>
         <span class="badge" id="badge-ambito"></span>
       </div>
+      <div class="stats-line" id="stats-ambito"></div>
     </div>
 
     <div class="card">
@@ -187,6 +194,7 @@
         <button id="btn-cenital" onclick="run('cenital')">Correr</button>
         <span class="badge" id="badge-cenital"></span>
       </div>
+      <div class="stats-line" id="stats-cenital"></div>
     </div>
 
     <div class="card">
@@ -196,6 +204,7 @@
         <button id="btn-perfil" onclick="run('perfil')">Correr</button>
         <span class="badge" id="badge-perfil"></span>
       </div>
+      <div class="stats-line" id="stats-perfil"></div>
     </div>
 
   </div>
@@ -206,12 +215,23 @@
   </div>
 
   <script>
+    function extraerStats(output, spider) {
+      const statsEl = document.getElementById(`stats-${spider}`);
+      const match = output.match(/Aprobados:\s*(\d+).*?Rechazados:\s*(\d+)/s);
+      if (match) {
+        const aprobados = match[1];
+        const rechazados = match[2];
+        statsEl.innerHTML = `<span class="ok">${aprobados} guardados</span> · <span class="err">${rechazados} descartados</span>`;
+      } else {
+        statsEl.innerHTML = '';
+      }
+    }
+
     async function run(spider) {
       const btn    = document.getElementById(`btn-${spider}`);
       const badge  = document.getElementById(`badge-${spider}`);
       const output = document.getElementById('output');
 
-      // Deshabilitar todos los botones mientras corre
       document.querySelectorAll('button').forEach(b => b.disabled = true);
 
       badge.className   = 'badge running';
@@ -226,6 +246,7 @@
           badge.className   = 'badge ok';
           badge.textContent = '✓ Completado';
           output.textContent = data.output || '(sin output)';
+          extraerStats(data.output, spider);
         } else {
           badge.className   = 'badge error';
           badge.textContent = '✗ Error';

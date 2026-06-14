@@ -6,6 +6,10 @@ services:
       dockerfile: Dockerfile
     environment:
       - PYTHONUNBUFFERED=1
+      - LMSTUDIO_URL=http://host.docker.internal:1234/v1
+      - MONGO_URI=${MONGO_URI}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - app
 
@@ -14,7 +18,7 @@ services:
       context: ./express
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - SCRAPERS_URL=http://scrapers:5000
     depends_on:

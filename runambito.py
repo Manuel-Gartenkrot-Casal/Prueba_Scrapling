@@ -1,12 +1,23 @@
 from spiders.ambito_spider import AmbitoSpider
-from db import col_ambito, guardar_items
+from db import col_ambito, clasificar_y_guardar
+from lm_studio import clasificar_articulo
 
 result = AmbitoSpider().start()
 
 items = list(result.items)
-print(f"Artículos scrapeados: {len(items)}")
+print(f"Artículos encontrados: {len(items)}")
 for item in items:
-    print(item["titulo"])
+    print(f"  · {item['titulo']}")
 
-guardados = guardar_items(items, col_ambito)
-print(f"Guardados/actualizados en MongoDB: {guardados}")
+print("\n━━━ Evaluando con LM Studio ━━━")
+stats = clasificar_y_guardar(items, col_ambito, clasificar_articulo)
+
+for d in stats["detalles"]:
+    icono = "✓" if d["estado"] == "aprobado" else "✗"
+    razon = f" → {d['razon']}" if "razon" in d else ""
+    print(f"  {icono} \"{d['titulo']}\"{razon}")
+
+print(f"\n━━━ Resultado ━━━")
+print(f"  Aprobados:  {stats['aprobados']}")
+print(f"  Rechazados: {stats['rechazados']}")
+print(f"  (Descartados guardados en colección 'articulos_descartados')")
