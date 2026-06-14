@@ -2,7 +2,11 @@ from spiders.lanacion_spider import LanacionSpider
 from db import col_lanacion, clasificar_y_guardar
 from lm_studio import clasificar_articulo
 
-result = LanacionSpider().start()
+try:
+    result = LanacionSpider().start()
+except Exception as e:
+    print(f"Error al ejecutar spider: {e}")
+    exit(1)
 
 items = list(result.items)
 print(f"Artículos encontrados: {len(items)}")

@@ -18,7 +18,7 @@ services:
       context: ./express
       dockerfile: Dockerfile
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
       - SCRAPERS_URL=http://scrapers:5000
     depends_on:

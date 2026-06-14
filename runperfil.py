@@ -2,7 +2,11 @@ from spiders.perfil_spider import PerfilSpider
 from db import col_perfil, clasificar_y_guardar
 from lm_studio import clasificar_articulo
 
-result = PerfilSpider().start()
+try:
+    result = PerfilSpider().start()
+except Exception as e:
+    print(f"Error al ejecutar spider: {e}")
+    exit(1)
 
 items = list(result.items)
 print(f"Artículos encontrados: {len(items)}")

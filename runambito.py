@@ -2,7 +2,11 @@ from spiders.ambito_spider import AmbitoSpider
 from db import col_ambito, clasificar_y_guardar
 from lm_studio import clasificar_articulo
 
-result = AmbitoSpider().start()
+try:
+    result = AmbitoSpider().start()
+except Exception as e:
+    print(f"Error al ejecutar spider: {e}")
+    exit(1)
 
 items = list(result.items)
 print(f"Artículos encontrados: {len(items)}")

@@ -2,7 +2,11 @@ from spiders.cenital_spider import CenitalSpider
 from db import col_cenital, clasificar_y_guardar
 from lm_studio import clasificar_articulo
 
-result = CenitalSpider().start()
+try:
+    result = CenitalSpider().start()
+except Exception as e:
+    print(f"Error al ejecutar spider: {e}")
+    exit(1)
 
 items = list(result.items)
 print(f"Artículos encontrados: {len(items)}")

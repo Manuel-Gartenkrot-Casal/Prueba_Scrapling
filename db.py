@@ -1,6 +1,6 @@
 import datetime
 import os
-from pymongo import MongoClient, ReplaceOne
+from pymongo import MongoClient, ReplaceOne, UpdateOne
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -65,7 +65,7 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
                 "cuerpo":          cuerpo,
                 "fuente":          item.get("fuente", ""),
                 "razon":           resultado.get("razon", ""),
-                "fecha_descarte":  datetime.datetime.utcnow().isoformat(),
+                "fecha_descarte":  datetime.datetime.now(datetime.timezone.utc).isoformat(),
             })
             detalles.append({
                 "titulo": titulo,
@@ -75,7 +75,11 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
 
     if aprobados:
         operaciones = [
-            ReplaceOne({"url": item["url"]}, {**item, "usado_para_articulo": False}, upsert=True)
+            UpdateOne(
+                {"url": item["url"]},
+                {"$set": item, "$setOnInsert": {"usado_para_articulo": False}},
+                upsert=True
+            )
             for item in aprobados
         ]
         coleccion.bulk_write(operaciones)

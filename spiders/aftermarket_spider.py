@@ -44,6 +44,7 @@ class AftermarketSpider:
     """
     name = "aftermarket"
     start_url = "https://mundoaftermarket.com/mercado/"
+    base = "https://mundoaftermarket.com"
 
     def start(self):
         portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
@@ -53,6 +54,8 @@ class AftermarketSpider:
         for href in portada.css("h3 a::attr(href)").getall():
             if not href or href in vistos:
                 continue
+            if href.startswith("/"):
+                href = self.base + href
             vistos.add(href)
             notas.append(href)
 

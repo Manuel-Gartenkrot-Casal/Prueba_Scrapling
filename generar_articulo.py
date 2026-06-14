@@ -69,7 +69,7 @@ def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> No
         "contenido":   contenido,
         "fuentes":     fuentes,
         "docs_usados": [str(i) for i in ids_usados],
-        "generado_en": datetime.datetime.utcnow().isoformat(),
+        "generado_en": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     })
 
 # ── Main ──────────────────────────────────────────────────────────────────────

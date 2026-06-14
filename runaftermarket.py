@@ -2,7 +2,11 @@ from spiders.aftermarket_spider import AftermarketSpider
 from db import col_aftermarket, clasificar_y_guardar
 from lm_studio import clasificar_articulo
 
-result = AftermarketSpider().start()
+try:
+    result = AftermarketSpider().start()
+except Exception as e:
+    print(f"Error al ejecutar spider: {e}")
+    exit(1)
 
 items = list(result.items)
 print(f"Artículos encontrados: {len(items)}")
