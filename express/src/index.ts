@@ -1,20 +1,17 @@
 import express, { Request, Response } from 'express';
 import axios, { AxiosError } from 'axios';
+import http from 'http';
 import path from 'path';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const SCRAPERS_URL = process.env.SCRAPERS_URL || 'http://scrapers:5000';
+const SCRAPERS_URL = process.env.SCRAPERS_URL || 'http://localhost:5000';
 
-const VALID_SPIDERS = ['lanacion', 'aftermarket', 'ambito', 'cenital', 'perfil'] as const;
-type Spider = typeof VALID_SPIDERS[number];
+interface Fuente { nombre: string; etiqueta: string; }
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Saca el mensaje útil de un error de axios. Flask puede responder con `error`
-// (fallos simples) o con `output` (el detalle de cada spider en /run-all), así
-// que probamos ambos antes de caer al genérico de conexión.
 function extraerError(err: unknown): string {
   const axiosErr = err as AxiosError<{ error?: string; output?: string }>;
   return (
@@ -24,50 +21,64 @@ function extraerError(err: unknown): string {
   );
 }
 
-// Dispara un spider llamando al servicio Python
-app.post('/api/run/:spider', async (req: Request, res: Response): Promise<void> => {
-  const spider = req.params.spider as Spider;
+// ── Fuentes dinámicas (se leen de Flask, no están hardcodeadas) ──────────────
 
-  if (!(VALID_SPIDERS as readonly string[]).includes(spider)) {
-    res.status(400).json({ success: false, error: `Spider '${spider}' no existe.` });
+let fuentesCache: Fuente[] = [];
+
+async function cargarFuentes(): Promise<Fuente[]> {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/fuentes`, { timeout: 5_000 });
+    if (Array.isArray(data)) fuentesCache = data;
+  } catch {
+    // Si Flask no responde, mantenemos el último cache conocido.
+  }
+  return fuentesCache;
+}
+
+async function esFuenteValida(nombre: string): Promise<boolean> {
+  if (fuentesCache.some((f) => f.nombre === nombre)) return true;
+  await cargarFuentes(); // refrescar por si se agregó una fuente nueva
+  return fuentesCache.some((f) => f.nombre === nombre);
+}
+
+app.get('/api/fuentes', async (_req: Request, res: Response): Promise<void> => {
+  res.json(await cargarFuentes());
+});
+
+// ── Endpoints JSON (sin streaming, compatibilidad) ──────────────────────────
+
+app.post('/api/run/:spider', async (req: Request, res: Response): Promise<void> => {
+  const spider = req.params.spider;
+  if (!(await esFuenteValida(spider))) {
+    res.status(400).json({ success: false, error: `La fuente '${spider}' no existe.` });
     return;
   }
-
   try {
-    const { data } = await axios.post(`${SCRAPERS_URL}/run/${spider}`, {}, {
-      timeout: 660_000, // 11 min (el spider tiene 10 min internos)
-    });
+    const { data } = await axios.post(`${SCRAPERS_URL}/run/${spider}`, {}, { timeout: 660_000 });
     res.json(data);
   } catch (err) {
     res.status(500).json({ success: false, error: extraerError(err) });
   }
 });
 
-// Corre TODOS los spiders de una sola vez
 app.post('/api/run-all', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const { data } = await axios.post(`${SCRAPERS_URL}/run-all`, {}, {
-      timeout: 1_800_000, // 30 min (5 spiders en serie x 5 min internos + margen)
-    });
+    const { data } = await axios.post(`${SCRAPERS_URL}/run-all`, {}, { timeout: 1_800_000 });
     res.json(data);
   } catch (err) {
     res.status(500).json({ success: false, error: extraerError(err) });
   }
 });
 
-// Genera el artículo reescrito por la IA
 app.post('/api/generar', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const { data } = await axios.post(`${SCRAPERS_URL}/generar`, {}, {
-      timeout: 660_000, // 11 min
-    });
+    const { data } = await axios.post(`${SCRAPERS_URL}/generar`, {}, { timeout: 660_000 });
     res.json(data);
   } catch (err) {
     res.status(500).json({ success: false, error: extraerError(err) });
   }
 });
 
-// Health check de ambos servicios
 app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
   try {
     const { data } = await axios.get(`${SCRAPERS_URL}/health`, { timeout: 5_000 });
@@ -77,11 +88,54 @@ app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
+// ── Endpoints streaming (proxy directo sin buffering) ───────────────────────
+
+function crearProxyStreaming(rutaFlask: string) {
+  return (req: Request, res: Response): void => {
+    const parsed = new URL(SCRAPERS_URL);
+
+    const opts: http.RequestOptions = {
+      hostname: parsed.hostname,
+      port: parsed.port || 5000,
+      path: rutaFlask,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    };
+
+    const proxyReq = http.request(opts, (proxyRes) => {
+      res.status(proxyRes.statusCode || 200);
+      res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('X-Accel-Buffering', 'no');
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', () => {
+      res.status(500).json({ success: false, error: 'No se pudo conectar con el servicio de scrapers.' });
+    });
+
+    proxyReq.write(JSON.stringify({}));
+    proxyReq.end();
+  };
+}
+
+app.post('/api/stream/run/:spider', async (req: Request, res: Response): Promise<void> => {
+  const spider = req.params.spider;
+  if (!(await esFuenteValida(spider))) {
+    res.status(400).json({ success: false, error: `La fuente '${spider}' no existe.` });
+    return;
+  }
+  crearProxyStreaming(`/stream/run/${spider}`)(req, res);
+});
+
+app.post('/api/stream/run-all', crearProxyStreaming('/stream/run-all'));
+
+app.post('/api/stream/generar', crearProxyStreaming('/stream/generar'));
+
+// ── Inicio ──────────────────────────────────────────────────────────────────
+
 app.listen(PORT, () => {
   console.log(`Express corriendo en http://localhost:${PORT}`);
   console.log(`Scrapers service: ${SCRAPERS_URL}`);
+  cargarFuentes().then((f) => console.log(`Fuentes cargadas: ${f.map((x) => x.nombre).join(', ') || '(ninguna)'}`));
 });
-
-// Para agregar un spider nuevo al dashboard:
-//   1. Agregar el nombre a VALID_SPIDERS
-//   2. Agregar el botón correspondiente en src/public/index.html

@@ -11,32 +11,54 @@
       background: #0d0d0d;
       color: #d0d0d0;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      padding: 48px 40px;
+      padding: 32px 36px;
       min-height: 100vh;
     }
 
-    header { margin-bottom: 40px; }
+    header { margin-bottom: 28px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     header h1 { font-size: 1.25rem; font-weight: 500; color: #fff; }
-    header p  { font-size: 0.8rem; color: #555; margin-top: 4px; }
+    header p  { font-size: 0.8rem; color: #555; margin-top: 2px; }
+
+    .status-bar {
+      display: flex; align-items: center; gap: 10px;
+      margin-left: auto; font-size: 0.78rem; color: #666;
+    }
+    .status-bar .pulse { display: none; width: 8px; height: 8px; border-radius: 50%; background: #f0b429; animation: pulse 1s ease-in-out infinite; }
+    .status-bar .pulse.active { display: inline-block; }
+    .status-bar .current-spider { display: none; color: #f0b429; font-weight: 600; }
+    .status-bar .current-spider.active { display: inline; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
-      margin-bottom: 40px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
     }
 
     .card {
       background: #161616;
       border: 1px solid #242424;
       border-radius: 10px;
-      padding: 24px;
+      padding: 20px;
+      transition: border-color .3s, box-shadow .3s;
     }
+    .card.active {
+      border-color: #f0b429;
+      box-shadow: 0 0 20px rgba(240,180,40,.08);
+    }
+    .card.done  { border-color: #2e7d32; }
+    .card.fail  { border-color: #c62828; }
 
-    .card .label  { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-    .card .spider { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 20px; }
+    .card .label  { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    .card .spider { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 14px; }
 
-    .card .row { display: flex; align-items: center; gap: 12px; }
+    .card .row { display: flex; align-items: center; gap: 10px; }
+    .card .stats-line { font-size: 0.72rem; color: #555; margin-top: 10px; padding-top: 8px; border-top: 1px solid #1e1e1e; min-height: 1.2em; }
+    .card .stats-line .num   { font-weight: 600; }
+    .card .stats-line .ok    { color: #66bb6a; }
+    .card .stats-line .err   { color: #ef5350; }
 
     button {
       background: #fff;
@@ -51,35 +73,28 @@
       white-space: nowrap;
     }
     button:hover    { opacity: .82; }
-    button:disabled { opacity: .25; cursor: not-allowed; }
+    button:disabled { opacity: .2; cursor: not-allowed; }
 
-    /* Acciones globales destacadas */
     .actions {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 14px;
-      margin-bottom: 40px;
+      gap: 12px;
+      margin-bottom: 28px;
     }
-
     .btn-big {
-      padding: 12px 24px;
+      padding: 11px 22px;
       font-size: 0.9rem;
       border-radius: 8px;
     }
-
-    .btn-all,
-    .btn-ai {
+    .btn-all, .btn-ai {
       background: #1e1e1e;
       color: #e0e0e0;
       border: 1px solid #333;
-      box-shadow: 0 1px 3px rgba(0,0,0,.4);
     }
-
-    .btn-all:hover,
-    .btn-ai:hover {
+    .btn-all:hover, .btn-ai:hover {
       background: #2a2a2a;
-      border-color: #444;
+      border-color: #555;
       opacity: 1;
     }
 
@@ -95,14 +110,10 @@
       align-items: center;
       gap: 7px;
     }
-    .badge.running,
-    .badge.ok,
-    .badge.error  { display: inline-flex; }
+    .badge.running, .badge.ok, .badge.error { display: inline-flex; }
     .badge.running { background: rgba(240,165,0,.12); border-color: rgba(240,165,0,.45); color: #f0b429; }
     .badge.ok      { background: rgba(76,175,80,.12); border-color: rgba(76,175,80,.45); color: #66bb6a; }
     .badge.error   { background: rgba(244,67,54,.12); border-color: rgba(244,67,54,.45); color: #ef5350; }
-
-    /* Puntito que pulsa mientras un proceso está corriendo */
     .badge.running::before {
       content: "";
       width: 7px;
@@ -111,196 +122,430 @@
       background: currentColor;
       animation: pulse 1s ease-in-out infinite;
     }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
 
     .log-section h2 {
       font-size: 0.72rem;
       color: #444;
       text-transform: uppercase;
       letter-spacing: .06em;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 12px;
     }
+    .log-section h2 .log-controls { margin-left: auto; display: flex; gap: 8px; }
+    .log-section h2 .log-controls label { color: #555; font-size: 0.68rem; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .log-section h2 .log-controls input { accent-color: #f0b429; cursor: pointer; }
 
-    pre {
-      background: #0a0a0a;
-      border: 1px solid #1e1e1e;
+    #output-container {
+      background: #080808;
+      border: 1px solid #1a1a1a;
       border-radius: 8px;
-      padding: 20px;
-      font-family: 'Courier New', monospace;
-      font-size: 0.78rem;
-      color: #888;
-      white-space: pre-wrap;
-      word-break: break-word;
-      min-height: 140px;
-      max-height: 420px;
+      padding: 16px 0;
+      font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+      font-size: 0.76rem;
+      line-height: 1.55;
+      min-height: 120px;
+      max-height: 460px;
       overflow-y: auto;
     }
+    #output-container::-webkit-scrollbar { width: 6px; }
+    #output-container::-webkit-scrollbar-track { background: transparent; }
+    #output-container::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+    .out-line { padding: 0 18px; white-space: pre-wrap; word-break: break-word; }
+    .out-line:hover { background: #0f0f0f; }
+
+    .out-info    { color: #888; }
+    .out-success { color: #66bb6a; }
+    .out-error   { color: #ef5350; }
+    .out-warn    { color: #f0b429; }
+    .out-section { color: #5c8aff; font-weight: 600; }
+    .out-title   { color: #e0e0e0; }
+    .out-dim     { color: #444; }
+    .out-highlight { color: #ce93d8; }
+
+    .scroll-btn {
+      position: sticky; bottom: 8px; left: 50%; transform: translateX(-50%);
+      background: #1e1e1e; border: 1px solid #333; color: #888;
+      padding: 4px 14px; border-radius: 999px; font-size: 0.68rem;
+      cursor: pointer; display: none; z-index: 2;
+    }
+    .scroll-btn:hover { background: #2a2a2a; color: #ccc; }
+
+    .clear-btn {
+      background: transparent; border: 1px solid #333; color: #555;
+      padding: 2px 10px; border-radius: 4px; font-size: 0.65rem;
+      cursor: pointer;
+    }
+    .clear-btn:hover { background: #1a1a1a; color: #888; }
   </style>
 </head>
 <body>
 
-  <header>
+<header>
+  <div>
     <h1>Scraping Dashboard</h1>
-    <p>Corré los spiders y guardá los resultados directo en MongoDB.</p>
-  </header>
-
-  <div class="actions">
-    <button class="btn-big btn-all" id="btn-all" onclick="runAll()">Scrapear todos los artículos</button>
-    <span class="badge" id="badge-all"></span>
-    <button class="btn-big btn-ai" id="btn-generar" onclick="generar()" disabled title="Primero scrapeá artículos">Generar artículos con IA</button>
-    <span class="badge" id="badge-generar"></span>
+    <p>Ejecutá los spiders y seguí el proceso en tiempo real.</p>
   </div>
-
-  <div class="grid">
-
-    <div class="card">
-      <div class="label">Spider 1</div>
-      <div class="spider">La Nacion</div>
-      <div class="row">
-        <button id="btn-lanacion" onclick="run('lanacion')">Correr</button>
-        <span class="badge" id="badge-lanacion"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Spider 2</div>
-      <div class="spider">Mundo Aftermarket</div>
-      <div class="row">
-        <button id="btn-aftermarket" onclick="run('aftermarket')">Correr</button>
-        <span class="badge" id="badge-aftermarket"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Spider 3</div>
-      <div class="spider">Ambito Financiero</div>
-      <div class="row">
-        <button id="btn-ambito" onclick="run('ambito')">Correr</button>
-        <span class="badge" id="badge-ambito"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Spider 4</div>
-      <div class="spider">Cenital</div>
-      <div class="row">
-        <button id="btn-cenital" onclick="run('cenital')">Correr</button>
-        <span class="badge" id="badge-cenital"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Spider 5</div>
-      <div class="spider">Perfil</div>
-      <div class="row">
-        <button id="btn-perfil" onclick="run('perfil')">Correr</button>
-        <span class="badge" id="badge-perfil"></span>
-      </div>
-    </div>
-
+  <div class="status-bar">
+    <span class="pulse" id="globalPulse"></span>
+    <span class="current-spider" id="currentSpider"></span>
   </div>
+</header>
 
-  <div class="log-section">
-    <h2>Output</h2>
-    <pre id="output">Esperando...</pre>
+<div class="actions">
+  <button class="btn-big btn-all" id="btn-all" onclick="runAll()">Scrapear todos</button>
+  <span class="badge" id="badge-all"></span>
+  <button class="btn-big btn-ai" id="btn-generar" onclick="generar()">Generar artículo con IA</button>
+  <span class="badge" id="badge-generar"></span>
+</div>
+
+<!-- Las tarjetas se generan dinámicamente desde /api/fuentes -->
+<div class="grid" id="grid"></div>
+
+<div class="log-section">
+  <h2>
+    <span>Salida en vivo</span>
+    <span class="log-controls">
+      <label><input type="checkbox" id="chkAutoscroll" checked /> Auto-scroll</label>
+      <button class="clear-btn" onclick="limpiarOutput()">Limpiar</button>
+    </span>
+  </h2>
+  <div id="output-container">
+    <div class="out-line out-dim">Esperando acción...</div>
   </div>
+</div>
 
-  <script>
-    async function run(spider) {
-      const btn    = document.getElementById(`btn-${spider}`);
-      const badge  = document.getElementById(`badge-${spider}`);
-      const output = document.getElementById('output');
+<script>
+// ── Utilidades ──────────────────────────────────────────────────────────────
 
-      // Deshabilitar todos los botones mientras corre
-      document.querySelectorAll('button').forEach(b => b.disabled = true);
+// Se llena dinámicamente con las fuentes que devuelve /api/fuentes.
+let SPIDER_NAMES = {};
 
-      badge.className   = 'badge running';
-      badge.textContent = 'Corriendo...';
-      output.textContent = `Iniciando ${spider}...\n`;
+function $id(id) { return document.getElementById(id); }
 
-      try {
-        const res  = await fetch(`/api/run/${spider}`, { method: 'POST' });
-        const data = await res.json();
+function colorizar(linea) {
+  if (linea.startsWith('[ERROR]') || linea.startsWith('[TIME OUT]')) return 'out-error';
+  if (linea.startsWith('{{SEPARADOR}}')) return 'out-section';
+  if (/^✓/.test(linea) || /aprobado/i.test(linea) || /guardados/i.test(linea)) return 'out-success';
+  if (/^✗/.test(linea) || /rechazado/i.test(linea) || /Error al/.test(linea) || /descarta/i.test(linea)) return 'out-error';
+  if (/━━━/.test(linea) || /={5,}/.test(linea)) return 'out-section';
+  if (/^  · /.test(linea)) return 'out-title';
+  if (/Corriendo|Iniciando|Evaluando|Generando|Scrapeando|Ejecutando/.test(linea)) return 'out-warn';
+  if (/Artículos encontrados|Aprobados:|Rechazados:|Resultado/.test(linea)) return 'out-highlight';
+  return 'out-info';
+}
 
-        if (data.success) {
-          badge.className   = 'badge ok';
-          badge.textContent = '✓ Completado';
-          output.textContent = data.output || '(sin output)';
-          marcarScrapingHecho();   // ya hay artículos: habilitamos la generación con IA
-        } else {
-          badge.className   = 'badge error';
-          badge.textContent = '✗ Error';
-          output.textContent = data.error || 'Error desconocido.';
+function extraerSpiderDeLinea(linea) {
+  const m = linea.match(/{{SEPARADOR}}(\w+){{SEPARADOR}}/);
+  // Flask emite el nombre en mayúsculas; lo normalizamos para que matchee
+  // con las claves de SPIDER_NAMES y los IDs de las tarjetas (minúsculas).
+  return m ? m[1].toLowerCase() : null;
+}
+
+function limpiarSpiderDeLinea(linea) {
+  return linea.replace(/{{SEPARADOR}}\w+{{SEPARADOR}}/g, '').trim();
+}
+
+function agregarLinea(texto, contenedor) {
+  const clazz = colorizar(texto);
+  const div = document.createElement('div');
+  div.className = `out-line ${clazz}`;
+  div.textContent = texto;
+  contenedor.appendChild(div);
+}
+
+function autoScroll(contenedor) {
+  if ($id('chkAutoscroll').checked) {
+    contenedor.scrollTop = contenedor.scrollHeight;
+  }
+}
+
+function limpiarOutput() {
+  const cont = $id('output-container');
+  cont.innerHTML = '';
+  agregarLinea('(output limpiado)', cont);
+}
+
+function setCardState(spider, state) {
+  const card = document.querySelector(`.card[data-spider="${spider}"]`);
+  if (!card) return;
+  card.classList.remove('active', 'done', 'fail');
+  if (state === 'active') card.classList.add('active');
+  if (state === 'done')   card.classList.add('done');
+  if (state === 'fail')   card.classList.add('fail');
+}
+
+function actualizarStats(spider, texto) {
+  const statsEl = $id(`stats-${spider}`);
+  if (!statsEl) return;
+  const match = texto.match(/Aprobados:\s*(\d+).*?Rechazados:\s*(\d+)/s);
+  if (match) {
+    statsEl.innerHTML = `<span class="ok">${match[1]} guardados</span> \u00b7 <span class="err">${match[2]} descartados</span>`;
+  }
+}
+
+function deshabilitarTodo(disabled) {
+  document.querySelectorAll('button').forEach(b => b.disabled = disabled);
+}
+
+// ── Streaming: leer respuesta como flujo ────────────────────────────────────
+
+async function leerStream(response, contenedor, opciones = {}) {
+  const { onSpiderStart, onSpiderEnd, onCompleto } = opciones;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let spiderActual = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const partes = buffer.split('\n');
+    buffer = partes.pop() || '';
+
+    for (const parte of partes) {
+      if (!parte.trim()) continue;
+
+      const spiderDetectado = extraerSpiderDeLinea(parte);
+      const limpia = limpiarSpiderDeLinea(parte);
+
+      if (spiderDetectado && limpia === '') {
+        if (spiderDetectado !== spiderActual) {
+          if (spiderActual && onSpiderEnd) onSpiderEnd(spiderActual);
+          spiderActual = spiderDetectado;
+          if (onSpiderStart) onSpiderStart(spiderActual);
         }
-      } catch (err) {
-        badge.className   = 'badge error';
-        badge.textContent = '✗ Conexión fallida';
-        output.textContent = String(err);
-      } finally {
-        document.querySelectorAll('button').forEach(b => b.disabled = false);
-        refrescarBotonIA();
+        continue;
       }
+
+      agregarLinea(limpia || parte, contenedor);
+
+      if (spiderActual) {
+        actualizarStats(spiderActual, limpia || parte);
+      }
+
+      autoScroll(contenedor);
+    }
+  }
+
+  // procesar resto del buffer (si no terminaba con \n)
+  if (buffer.trim()) {
+    const parte = buffer;
+    const spiderDetectado = extraerSpiderDeLinea(parte);
+    const limpia = limpiarSpiderDeLinea(parte);
+
+    if (!(spiderDetectado && limpia === '')) {
+      agregarLinea(limpia || parte, contenedor);
+      if (spiderActual) actualizarStats(spiderActual, limpia || parte);
+      autoScroll(contenedor);
+    }
+  }
+
+  if (spiderActual && onSpiderEnd) onSpiderEnd(spiderActual);
+  if (onCompleto) onCompleto();
+}
+
+
+// ── Acción: correr un solo spider ───────────────────────────────────────────
+
+async function run(spider) {
+  const btn    = $id(`btn-${spider}`);
+  const badge  = $id(`badge-${spider}`);
+  const cont   = $id('output-container');
+
+  deshabilitarTodo(true);
+
+  badge.className = 'badge running';
+  badge.textContent = 'Corriendo...';
+  setCardState(spider, 'active');
+  $id('globalPulse').classList.add('active');
+  $id('currentSpider').textContent = `\u25b6 ${SPIDER_NAMES[spider]}`;
+  $id('currentSpider').classList.add('active');
+
+  cont.innerHTML = '';
+  agregarLinea(`Iniciando ${SPIDER_NAMES[spider]}...`, cont);
+
+  try {
+    const res = await fetch(`/api/stream/run/${spider}`, { method: 'POST' });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${res.status}`);
     }
 
-    // Acción genérica para los botones globales (scrapear todos / generar IA)
-    async function accionGlobal(endpoint, badgeId, mensajeInicial, esScraping = false) {
-      const badge  = document.getElementById(badgeId);
-      const output = document.getElementById('output');
+    await leerStream(res, cont, {
+      onSpiderEnd: (s) => { actualizarStats(s, cont.textContent); },
+      onCompleto: () => {
+        badge.className = 'badge ok';
+        badge.textContent = '\u2713 Completado';
+        setCardState(spider, 'done');
+      },
+    });
+  } catch (err) {
+    badge.className = 'badge error';
+    badge.textContent = '\u2717 Error';
+    setCardState(spider, 'fail');
+    agregarLinea(`[ERROR] ${err.message}`, cont);
+    autoScroll(cont);
+  } finally {
+    deshabilitarTodo(false);
+    $id('globalPulse').classList.remove('active');
+    $id('currentSpider').classList.remove('active');
+  }
+}
 
-      document.querySelectorAll('button').forEach(b => b.disabled = true);
 
-      badge.className   = 'badge running';
-      badge.textContent = 'Corriendo...';
-      output.textContent = mensajeInicial;
+// ── Acción: run-all (streaming) ─────────────────────────────────────────────
 
-      try {
-        const res  = await fetch(endpoint, { method: 'POST' });
-        const data = await res.json();
+async function runAll() {
+  const badge  = $id('badge-all');
+  const cont   = $id('output-container');
 
-        if (data.success) {
-          badge.className   = 'badge ok';
-          badge.textContent = '✓ Completado';
-          output.textContent = data.output || '(sin output)';
-          if (esScraping) marcarScrapingHecho();   // habilita el botón de IA
-        } else {
-          badge.className   = 'badge error';
-          badge.textContent = '✗ Error';
-          output.textContent = data.error || data.output || 'Error desconocido.';
+  deshabilitarTodo(true);
+
+  badge.className = 'badge running';
+  badge.textContent = 'Corriendo...';
+  cont.innerHTML = '';
+  agregarLinea('Scrapeando todas las fuentes...', cont);
+
+  $id('globalPulse').classList.add('active');
+
+  // Limpiar estados previos
+  Object.keys(SPIDER_NAMES).forEach(s => setCardState(s, ''));
+
+  try {
+    const res = await fetch('/api/stream/run-all', { method: 'POST' });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    await leerStream(res, cont, {
+      onSpiderStart: (s) => {
+        $id('currentSpider').textContent = `\u25b6 ${SPIDER_NAMES[s] || s}`;
+        $id('currentSpider').classList.add('active');
+        setCardState(s, 'active');
+        const badgeSpider = $id(`badge-${s}`);
+        if (badgeSpider) {
+          badgeSpider.className = 'badge running';
+          badgeSpider.textContent = 'Corriendo...';
         }
-      } catch (err) {
-        badge.className   = 'badge error';
-        badge.textContent = '✗ Conexión fallida';
-        output.textContent = String(err);
-      } finally {
-        document.querySelectorAll('button').forEach(b => b.disabled = false);
-        refrescarBotonIA();
-      }
+      },
+      onSpiderEnd: (s) => {
+        setCardState(s, 'done');
+        const badgeSpider = $id(`badge-${s}`);
+        if (badgeSpider) {
+          badgeSpider.className = 'badge ok';
+          badgeSpider.textContent = '\u2713 OK';
+        }
+        actualizarStats(s, cont.textContent);
+      },
+      onCompleto: () => {
+        badge.className = 'badge ok';
+        badge.textContent = '\u2713 Completado';
+        $id('currentSpider').classList.remove('active');
+      },
+    });
+  } catch (err) {
+    badge.className = 'badge error';
+    badge.textContent = '\u2717 Error';
+    agregarLinea(`[ERROR] ${err.message}`, cont);
+    autoScroll(cont);
+  } finally {
+    deshabilitarTodo(false);
+    $id('globalPulse').classList.remove('active');
+  }
+}
+
+
+// ── Acción: generar artículo con IA ─────────────────────────────────────────
+
+async function generar() {
+  const badge  = $id('badge-generar');
+  const cont   = $id('output-container');
+
+  deshabilitarTodo(true);
+
+  badge.className = 'badge running';
+  badge.textContent = 'Generando...';
+  cont.innerHTML = '';
+  agregarLinea('Generando artículo con IA a partir de lo scrapeado...', cont);
+  agregarLinea('', cont);
+
+  $id('globalPulse').classList.add('active');
+
+  try {
+    const res = await fetch('/api/stream/generar', { method: 'POST' });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${res.status}`);
     }
 
-    function runAll() {
-      accionGlobal('/api/run-all', 'badge-all', 'Scrapeando todas las fuentes...\nEsto puede tardar varios minutos.\n', true);
+    await leerStream(res, cont, {
+      onCompleto: () => {
+        badge.className = 'badge ok';
+        badge.textContent = '\u2713 Artículo generado';
+      },
+    });
+  } catch (err) {
+    badge.className = 'badge error';
+    badge.textContent = '\u2717 Error';
+    agregarLinea(`[ERROR] ${err.message}`, cont);
+    autoScroll(cont);
+  } finally {
+    deshabilitarTodo(false);
+    $id('globalPulse').classList.remove('active');
+  }
+}
+
+
+// ── Carga dinámica de fuentes: arma las tarjetas desde /api/fuentes ──────────
+
+function crearCard(fuente, indice) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.spider = fuente.nombre;
+  card.innerHTML = `
+    <div class="label">Spider ${indice + 1}</div>
+    <div class="spider">${fuente.etiqueta}</div>
+    <div class="row">
+      <button id="btn-${fuente.nombre}">Correr</button>
+      <span class="badge" id="badge-${fuente.nombre}"></span>
+    </div>
+    <div class="stats-line" id="stats-${fuente.nombre}"></div>`;
+  card.querySelector('button').addEventListener('click', () => run(fuente.nombre));
+  return card;
+}
+
+async function cargarFuentes() {
+  const grid = $id('grid');
+  try {
+    const res = await fetch('/api/fuentes');
+    const fuentes = await res.json();
+
+    SPIDER_NAMES = {};
+    grid.innerHTML = '';
+
+    if (!Array.isArray(fuentes) || fuentes.length === 0) {
+      grid.innerHTML = '<div class="card"><div class="stats-line">No hay fuentes configuradas en fuentes.json.</div></div>';
+      return;
     }
 
-    function generar() {
-      accionGlobal('/api/generar', 'badge-generar', 'Generando artículo con IA a partir de lo scrapeado...\n');
-    }
+    fuentes.forEach((f, i) => {
+      SPIDER_NAMES[f.nombre] = f.etiqueta;
+      grid.appendChild(crearCard(f, i));
+    });
+  } catch (err) {
+    grid.innerHTML = `<div class="card"><div class="stats-line err">No se pudieron cargar las fuentes: ${err.message}</div></div>`;
+  }
+}
 
-    // ── Habilitar "Generar con IA" recién después de scrapear ──────────────────
-    function marcarScrapingHecho() {
-      localStorage.setItem('hayScraping', '1');
-    }
-
-    // Habilita/deshabilita el botón de IA según si ya se scrapeó algo en esta máquina.
-    function refrescarBotonIA() {
-      const btn = document.getElementById('btn-generar');
-      const hay = localStorage.getItem('hayScraping') === '1';
-      btn.disabled = !hay;
-      btn.title = hay ? '' : 'Primero scrapeá artículos';
-    }
-
-    // Al cargar la página, respetar el estado guardado.
-    refrescarBotonIA();
-  </script>
+cargarFuentes();
+</script>
 
 </body>
 </html>

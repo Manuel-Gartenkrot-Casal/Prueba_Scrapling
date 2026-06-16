@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Instalar dependencias Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=300 --no-cache-dir -r requirements.txt
 
 # Instalar Chromium con sus dependencias de sistema (vía Playwright)
 # y luego los browsers adicionales de Scrapling (camoufox)
@@ -18,15 +18,14 @@ RUN playwright install --with-deps chromium && \
 
 # Copiar código fuente
 COPY db.py .
-COPY seed_db.py .
+COPY lm_studio.py .
 COPY flask_api.py .
 COPY generar_articulo.py .
-COPY runlanacion.py .
-COPY runaftermarket.py .
-COPY runambito.py .
-COPY runcenital.py .
-COPY runperfil.py .
+COPY fuentes.json .
+COPY fuentes.py .
+COPY run_fuente.py .
 COPY spiders/ ./spiders/
+COPY .env .
 
 EXPOSE 5000
 CMD ["python", "flask_api.py"]

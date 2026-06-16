@@ -115,22 +115,17 @@ SCRAPERS_URL=http://localhost:5000 node dist/index.js
 
 Luego abrí **http://localhost:3000**
 
-### Correr los spiders directamente (sin dashboard)
+### Correr una fuente directamente (sin dashboard)
+
+Todas las fuentes usan el mismo runner genérico; le pasás el nombre de la fuente
+(el campo `nombre` de `fuentes.json`):
 
 ```bash
-python runlanacion.py
-python runaftermarket.py
-python runambito.py
-python runcenital.py
-python runperfil.py
-```
-
-### Migrar JSON existentes a MongoDB (solo una vez)
-
-Si tenés archivos previos en `data/`:
-
-```bash
-python seed_db.py
+python run_fuente.py lanacion
+python run_fuente.py aftermarket
+python run_fuente.py ambito
+python run_fuente.py cenital
+python run_fuente.py perfil
 ```
 
 ---
@@ -188,13 +183,56 @@ El artículo se imprime en consola y se guarda en la colección `articulos_gener
 
 ---
 
-## Agregar un spider nuevo
+## Agregar una fuente nueva
 
-1. Crear `spiders/nuevo_spider.py`
-2. Crear `runnuevo.py`
-3. En `flask_api.py` agregar a `SPIDERS`: `"nombre": "runnuevo.py"`
-4. En `express/src/index.ts` agregar `"nombre"` al array `VALID_SPIDERS`
-5. En `express/src/public/index.html` copiar una card y cambiar el nombre
-6. En `db.py` agregar la colección: `col_nuevo = db["nuevo"]`
-7. En `generar_articulo.py` agregar a `FUENTES`: `"nombre": db["nuevo"]`
-8. Si usás Docker: `docker compose up --build`
+Ya no hace falta tocar código ni crear spiders. Toda la configuración vive en
+**`fuentes.json`**: agregás una entrada nueva y listo. El spider genérico, el
+runner, Flask, el dashboard y el generador la toman automáticamente.
+
+Agregá un objeto al array de `fuentes.json`:
+
+```json
+{
+  "nombre": "miFuente",
+  "etiqueta": "Mi Fuente",
+  "coleccion": "mifuente",
+  "start_url": "https://sitio.com/buscador?q=autopartes",
+  "base": "https://sitio.com",
+  "modo": "articulos",
+  "max_articulos": 3,
+  "min_parrafo": 40,
+  "selectores": {
+    "item": "article",
+    "link": "a::attr(href)",
+    "titulo": ["h2::text"],
+    "fecha": ["time::attr(datetime)", "time::text"],
+    "cuerpo": "p"
+  },
+  "basura": ["Suscribite", "Newsletter"]
+}
+```
+
+Campos:
+
+| Campo | Qué es |
+|---|---|
+| `nombre` | identificador interno (sin espacios), se usa en la URL y los IDs |
+| `etiqueta` | nombre lindo que se muestra en el dashboard |
+| `coleccion` | colección de MongoDB donde se guardan los artículos |
+| `start_url` | página de listado/búsqueda desde donde arranca |
+| `base` | dominio base, para completar links relativos |
+| `modo` | `"articulos"` (recorre bloques `<article>`) o `"links"` (junta href sueltos) |
+| `max_articulos` | tope de notas a scrapear |
+| `min_parrafo` | largo mínimo de un `<p>` para contar como cuerpo |
+| `selectores.item` | (modo articulos) selector del bloque contenedor de cada nota |
+| `selectores.link` | selector del link a la nota |
+| `selectores.titulo` | uno o varios selectores del título (se prueba en orden) |
+| `selectores.fecha` | (opcional) selectores de fecha en la página de la nota |
+| `selectores.bajada` | (opcional) selector de bajada/copete |
+| `selectores.cuerpo` | selector de los párrafos (default `p`) |
+| `basura` | frases a excluir del cuerpo (menús, muros de pago, etc.) |
+
+En modo `"links"` podés además usar `link_fallback` y `link_fallback_contiene`
+para cuando el selector principal no encuentra resultados.
+
+Si usás Docker, reconstruí: `docker compose up --build`.

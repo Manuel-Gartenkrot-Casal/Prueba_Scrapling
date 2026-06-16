@@ -1,25 +1,31 @@
+import os
 import subprocess
 import sys
-from flask import Flask, jsonify
+import time
+from flask import Flask, jsonify, Response, stream_with_context
+
+from fuentes import cargar_fuentes, nombres_fuentes
 
 app = Flask(__name__)
 
-SPIDERS = {
-    "lanacion":    "runlanacion.py",
-    "aftermarket": "runaftermarket.py",
-    "ambito":      "runambito.py",
-    "cenital":     "runcenital.py",
-    "perfil":      "runperfil.py",
-}
+_TIMEOUT = 300  # 5 min por fuente
 
 
-def run_spider(script: str) -> dict:
+# ── Helpers: armar el comando para correr una fuente ──────────────────────────
+
+def _cmd_fuente(nombre: str) -> list[str]:
+    """Comando que corre el runner genérico para una fuente."""
+    return ["run_fuente.py", nombre]
+
+
+def run_script(args: list[str]) -> dict:
+    """Corre `python <args...>` y captura toda la salida."""
     try:
         result = subprocess.run(
-            [sys.executable, script],
+            [sys.executable, *args],
             capture_output=True,
             text=True,
-            timeout=300,  # 5 min máx por spider (con recursos bloqueados sobra)
+            timeout=_TIMEOUT,
         )
         return {
             "success": result.returncode == 0,
@@ -27,60 +33,117 @@ def run_spider(script: str) -> dict:
             "error":  result.stderr if result.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "output": "", "error": "Timeout: el spider tardó más de 5 minutos."}
+        return {"success": False, "output": "", "error": "Timeout: el proceso tardó más de 5 minutos."}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}
 
+
+def _stream_output(args: list[str]):
+    """Corre `python <args...>` y produce su stdout línea por línea en tiempo real."""
+    start = time.time()
+    try:
+        process = subprocess.Popen(
+            [sys.executable, *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+
+        for line in process.stdout:
+            if time.time() - start > _TIMEOUT:
+                process.kill()
+                yield "[TIME OUT] El proceso superó el límite de tiempo.\n"
+                return
+            yield line
+
+        process.wait(timeout=5)
+    except Exception as e:
+        yield f"[ERROR] {e}\n"
+
+
+# ── Endpoints clásicos (JSON, sin streaming) ──────────────────────────────────
 
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
 
 
+@app.route("/fuentes")
+def fuentes():
+    """Lista de fuentes configuradas, para que el frontend arme las tarjetas."""
+    return jsonify([
+        {"nombre": f["nombre"], "etiqueta": f.get("etiqueta", f["nombre"])}
+        for f in cargar_fuentes()
+    ])
+
+
 @app.route("/run/<spider>", methods=["POST"])
 def run(spider: str):
-    if spider not in SPIDERS:
-        return jsonify({"success": False, "error": f"Spider '{spider}' no existe."}), 400
-
-    result = run_spider(SPIDERS[spider])
+    if spider not in nombres_fuentes():
+        return jsonify({"success": False, "error": f"La fuente '{spider}' no existe."}), 400
+    result = run_script(_cmd_fuente(spider))
     status = 200 if result["success"] else 500
     return jsonify(result), status
 
 
 @app.route("/run-all", methods=["POST"])
 def run_all():
-    """Corre los spiders uno por uno y junta la salida de cada uno.
-
-    Secuencial a propósito: cada spider levanta su propio navegador, y correr
-    varios a la vez genera contención de CPU/RAM que hace que algunos se cuelguen
-    hasta el timeout. Como ahora bloqueamos recursos y cada spider tarda pocos
-    segundos, en serie el total queda en un par de minutos y nunca falla por carga.
-    """
+    """Corre todas las fuentes, una por una (secuencial a propósito)."""
     salidas = []
     ok_global = True
-    for nombre, script in SPIDERS.items():
-        r = run_spider(script)
+    for nombre in nombres_fuentes():
+        r = run_script(_cmd_fuente(nombre))
         estado = "OK" if r["success"] else "ERROR"
         cuerpo = r["output"] if r["success"] else (r["error"] or r["output"])
         salidas.append(f"{'='*60}\n  {nombre.upper()}  [{estado}]\n{'='*60}\n{cuerpo}")
         if not r["success"]:
             ok_global = False
-
     return jsonify({"success": ok_global, "output": "\n\n".join(salidas)}), (200 if ok_global else 500)
 
 
 @app.route("/generar", methods=["POST"])
 def generar():
-    """Genera el artículo reescrito por la IA a partir de lo scrapeado."""
-    result = run_spider("generar_articulo.py")
+    result = run_script(["generar_articulo.py"])
     status = 200 if result["success"] else 500
     return jsonify(result), status
 
 
-# Para agregar un spider nuevo:
-#   1. Crear spiders/nuevo_spider.py
-#   2. Crear runnuevo.py
-#   3. Agregar a SPIDERS: "nombre": "runnuevo.py"
+# ── Endpoints streaming (SSE) ─────────────────────────────────────────────────
+
+@app.route("/stream/run/<spider>", methods=["POST"])
+def stream_run(spider: str):
+    if spider not in nombres_fuentes():
+        return jsonify({"success": False, "error": f"La fuente '{spider}' no existe."}), 400
+    return Response(
+        stream_with_context(_stream_output(_cmd_fuente(spider))),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/stream/run-all", methods=["POST"])
+def stream_run_all():
+    def generate():
+        for nombre in nombres_fuentes():
+            yield f"\n{{{{SEPARADOR}}}}{nombre.upper()}{{{{SEPARADOR}}}}\n"
+            yield from _stream_output(_cmd_fuente(nombre))
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/stream/generar", methods=["POST"])
+def stream_generar():
+    return Response(
+        stream_with_context(_stream_output(["generar_articulo.py"])),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, threaded=True)

@@ -1,0 +1,123 @@
+[
+  {
+    "nombre": "lanacion",
+    "etiqueta": "La Nacion",
+    "coleccion": "autopartes",
+    "start_url": "https://www.lanacion.com.ar/buscador/?query=autopartes",
+    "base": "https://www.lanacion.com.ar",
+    "modo": "links",
+    "max_articulos": 3,
+    "min_parrafo": 40,
+    "selectores": {
+      "link": "a[onmousedown]::attr(href)",
+      "link_fallback": "a::attr(href)",
+      "link_fallback_contiene": "-nid",
+      "titulo": ["h1::text"],
+      "fecha": ["time::attr(datetime)", "time::text"],
+      "cuerpo": "p"
+    },
+    "basura": [
+      "Conforme a los criterios de",
+      "Suscribite",
+      "Newsletter",
+      "Registrate"
+    ]
+  },
+  {
+    "nombre": "aftermarket",
+    "etiqueta": "Mundo Aftermarket",
+    "coleccion": "aftermarket",
+    "start_url": "https://mundoaftermarket.com/mercado/",
+    "base": "https://mundoaftermarket.com",
+    "modo": "links",
+    "max_articulos": 3,
+    "min_parrafo": 30,
+    "selectores": {
+      "link": "h3 a::attr(href)",
+      "titulo": ["h1::text"],
+      "bajada": ["h3::text"],
+      "cuerpo": "p"
+    },
+    "basura": [
+      "Un sitio multimedia integral",
+      "corresponsales en Brasil y México",
+      "Podes compartir esta nota",
+      "activa JavaScript",
+      "Nombre *",
+      "Correo electrónico *"
+    ]
+  },
+  {
+    "nombre": "ambito",
+    "etiqueta": "Ambito Financiero",
+    "coleccion": "ambito",
+    "start_url": "https://www.ambito.com/industria-automotriz-a5127281",
+    "base": "https://www.ambito.com",
+    "modo": "articulos",
+    "max_articulos": 3,
+    "min_parrafo": 40,
+    "selectores": {
+      "item": "article",
+      "link": "h2 a::attr(href)",
+      "titulo": ["h2 a::text"],
+      "fecha": ["time::attr(datetime)", "time::text"],
+      "cuerpo": "p"
+    },
+    "basura": [
+      "Ya superaste el límite",
+      "Registrate gratis",
+      "Llamanos al",
+      "lunes a",
+      "Suscribite",
+      "Newsletter"
+    ]
+  },
+  {
+    "nombre": "cenital",
+    "etiqueta": "Cenital",
+    "coleccion": "cenital",
+    "start_url": "https://cenital.com/?s=autopartes",
+    "base": "https://cenital.com",
+    "modo": "articulos",
+    "max_articulos": 3,
+    "min_parrafo": 40,
+    "selectores": {
+      "item": "article",
+      "link": "a::attr(href)",
+      "titulo": ["h3::text", "h2::text"],
+      "fecha": ["time::attr(datetime)", "time::text"],
+      "cuerpo": "p"
+    },
+    "basura": [
+      "Suscribite",
+      "Newsletter",
+      "Registrate",
+      "Seguinos",
+      "Compartir"
+    ]
+  },
+  {
+    "nombre": "perfil",
+    "etiqueta": "Perfil",
+    "coleccion": "perfil",
+    "start_url": "https://www.perfil.com/buscador?q=autopartes",
+    "base": "https://www.perfil.com",
+    "modo": "articulos",
+    "max_articulos": 3,
+    "min_parrafo": 40,
+    "selectores": {
+      "item": "article",
+      "link": "a::attr(href)",
+      "titulo": ["h3::text", "h2::text"],
+      "fecha": ["time::attr(datetime)", "time::text"],
+      "cuerpo": "p"
+    },
+    "basura": [
+      "Suscribite",
+      "Newsletter",
+      "Registrate",
+      "Seguinos",
+      "Compartir"
+    ]
+  }
+]

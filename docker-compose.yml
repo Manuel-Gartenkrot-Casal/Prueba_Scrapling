@@ -6,8 +6,10 @@ services:
       dockerfile: Dockerfile
     environment:
       - PYTHONUNBUFFERED=1
-    env_file:
-      - .env          # inyecta NVIDIA_API_KEY para generar_articulo.py
+      - LMSTUDIO_URL=http://host.docker.internal:1234/v1
+      - MONGO_URI=${MONGO_URI}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - app
 
