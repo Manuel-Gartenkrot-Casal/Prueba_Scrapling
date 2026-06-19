@@ -64,12 +64,17 @@ class LanacionSpider:
             notas.append(href)
         return notas
 
-    def start(self):
+    def start(self, skip_urls: set | None = None):
+        if skip_urls is None:
+            skip_urls = set()
+
         portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
         notas = self._links(portada)
 
         items = []
         for url in notas[:MAX_ARTICULOS]:
+            if url in skip_urls:
+                continue
             titulo, fecha, cuerpo = "", "", ""
             try:
                 pag = StealthyFetcher.fetch(url, **FETCH_OPTS)

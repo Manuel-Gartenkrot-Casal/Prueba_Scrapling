@@ -1,9 +1,10 @@
 from spiders.cenital_spider import CenitalSpider
-from db import col_cenital, clasificar_y_guardar
+from db import col_cenital, clasificar_y_guardar, obtener_urls_procesados
 from lm_studio import clasificar_articulo
 
+skip_urls = obtener_urls_procesados()
 try:
-    result = CenitalSpider().start()
+    result = CenitalSpider().start(skip_urls=skip_urls)
 except Exception as e:
     print(f"Error al ejecutar spider: {e}")
     exit(1)

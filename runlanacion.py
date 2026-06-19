@@ -1,9 +1,10 @@
 from spiders.lanacion_spider import LanacionSpider
-from db import col_lanacion, clasificar_y_guardar
+from db import col_lanacion, clasificar_y_guardar, obtener_urls_procesados
 from lm_studio import clasificar_articulo
 
+skip_urls = obtener_urls_procesados()
 try:
-    result = LanacionSpider().start()
+    result = LanacionSpider().start(skip_urls=skip_urls)
 except Exception as e:
     print(f"Error al ejecutar spider: {e}")
     exit(1)

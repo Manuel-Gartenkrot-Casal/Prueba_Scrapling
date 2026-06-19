@@ -47,7 +47,10 @@ class PerfilSpider:
     start_url = "https://www.perfil.com/buscador?q=autopartes"
     base = "https://www.perfil.com"
 
-    def start(self):
+    def start(self, skip_urls: set | None = None):
+        if skip_urls is None:
+            skip_urls = set()
+
         portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
 
         # 1) Links + títulos del listado (uno por <article>)
@@ -69,6 +72,8 @@ class PerfilSpider:
         #    título + url para no perder el artículo.
         items = []
         for nota in notas[:MAX_ARTICULOS]:
+            if nota["url"] in skip_urls:
+                continue
             fecha, cuerpo = "", ""
             try:
                 pag = StealthyFetcher.fetch(nota["url"], **FETCH_OPTS)

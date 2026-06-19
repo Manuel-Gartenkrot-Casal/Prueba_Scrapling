@@ -85,7 +85,7 @@ def verificar_conexion() -> bool:
         _DISPONIBLE = True
     except Exception:
         _DISPONIBLE = False
-        print(f"⚠️  LM Studio ({LMSTUDIO_URL}) no disponible. Los artículos se guardarán sin filtrar.")
+        print(f"[AVISO] LM Studio ({LMSTUDIO_URL}) no disponible. Los artículos se guardarán sin filtrar.")
     return _DISPONIBLE
 
 

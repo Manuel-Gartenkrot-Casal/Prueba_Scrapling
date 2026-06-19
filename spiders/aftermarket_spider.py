@@ -46,7 +46,10 @@ class AftermarketSpider:
     start_url = "https://mundoaftermarket.com/mercado/"
     base = "https://mundoaftermarket.com"
 
-    def start(self):
+    def start(self, skip_urls: set | None = None):
+        if skip_urls is None:
+            skip_urls = set()
+
         portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
 
         notas = []
@@ -61,6 +64,8 @@ class AftermarketSpider:
 
         items = []
         for url in notas[:MAX_ARTICULOS]:
+            if url in skip_urls:
+                continue
             titulo, bajada, cuerpo = "", "", ""
             try:
                 pag = StealthyFetcher.fetch(url, **FETCH_OPTS)

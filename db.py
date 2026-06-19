@@ -15,6 +15,9 @@ col_aftermarket = db["aftermarket"]   # artículos de Mundo Aftermarket
 col_ambito      = db["ambito"]        # artículos de Ambito Financiero
 col_cenital     = db["cenital"]       # artículos de Cenital
 col_perfil      = db["perfil"]        # artículos de Perfil
+col_descartados = db["articulos_descartados"]
+
+COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados]
 
 
 def guardar_items(items, coleccion):
@@ -45,7 +48,6 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
     if not items:
         return {"total": 0, "aprobados": 0, "rechazados": 0, "detalles": []}
 
-    col_descartados = db["articulos_descartados"]
     aprobados = []
     detalles = []
 
@@ -59,14 +61,14 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
             aprobados.append(item)
             detalles.append({"titulo": titulo, "estado": "aprobado"})
         else:
-            col_descartados.insert_one({
-                "url":             item.get("url", ""),
-                "titulo":          titulo,
-                "cuerpo":          cuerpo,
-                "fuente":          item.get("fuente", ""),
-                "razon":           resultado.get("razon", ""),
-                "fecha_descarte":  datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            })
+            col_descartados.replace_one(
+                {"url": item.get("url", "")},
+                {
+                    "url":            item.get("url", ""),
+                    "fecha_descarte": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                },
+                upsert=True,
+            )
             detalles.append({
                 "titulo": titulo,
                 "estado": "rechazado",
@@ -90,3 +92,12 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
         "rechazados": len(items) - len(aprobados),
         "detalles":   detalles,
     }
+
+
+def obtener_urls_procesados() -> set[str]:
+    urls = set()
+    for col in COLECCIONES_URLS:
+        for doc in col.find({}, {"url": 1, "_id": 0}):
+            if url := doc.get("url"):
+                urls.add(url)
+    return urls

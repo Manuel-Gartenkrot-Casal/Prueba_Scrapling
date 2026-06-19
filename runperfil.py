@@ -1,9 +1,10 @@
 from spiders.perfil_spider import PerfilSpider
-from db import col_perfil, clasificar_y_guardar
+from db import col_perfil, clasificar_y_guardar, obtener_urls_procesados
 from lm_studio import clasificar_articulo
 
+skip_urls = obtener_urls_procesados()
 try:
-    result = PerfilSpider().start()
+    result = PerfilSpider().start(skip_urls=skip_urls)
 except Exception as e:
     print(f"Error al ejecutar spider: {e}")
     exit(1)
