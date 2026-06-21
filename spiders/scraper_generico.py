@@ -108,40 +108,37 @@ def _encontrar_links(html: str, base_url: str) -> list[str]:
     return [url for _, _, url in articulos]
 
 
-_LIMITE_LISTADO = 5  # si hay esta cantidad o más links de artículos, tratar como listado
-
-
-def _procesar_url(url: str, max_articulos: int, items: list):
-    print(f"\n>>> URL: {url}")
+def _procesar_individual(url: str, items: list):
+    """Modo artículo individual: extrae solo la URL, sin buscar links."""
+    print(f"\n>>> URL (individual): {url}")
     try:
-        pag, html = _fetch(url)
+        _, html = _fetch(url)
     except Exception as e:
         print(f"  [ERROR] No se pudo descargar: {e}")
         return
-
     if not html:
-        print(f"  [ERROR] HTML vacío")
+        print("  [ERROR] HTML vacío")
         return
-
-    # Extraer artículo y buscar links en paralelo
-    articulo = _extraer_articulo(html, url)
-    enlaces = _encontrar_links(html, url)
-
-    # Decidir según el contenido, no según la URL
-    if len(enlaces) >= _LIMITE_LISTADO:
-        print(f"  \u2192 {len(enlaces)} artículos encontrados en la página, explorando...")
-        _explorar_enlaces(enlaces, max_articulos, items)
-    elif articulo:
-        print(f"  \u2713 Artículo: {articulo['titulo'][:90]}")
-        items.append(articulo)
-    elif enlaces:
-        print(f"  \u2192 {len(enlaces)} enlaces encontrados, explorando...")
-        _explorar_enlaces(enlaces, max_articulos, items)
+    art = _extraer_articulo(html, url)
+    if art:
+        print(f"  \u2713 Artículo: {art['titulo'][:90]}")
+        items.append(art)
     else:
-        print("  [ERROR] No se pudo extraer contenido ni encontrar enlaces")
+        print("  \u2717 No se pudo extraer contenido del artículo")
 
 
-def _explorar_enlaces(enlaces: list, max_articulos: int, items: list):
+def _procesar_listado(url: str, max_articulos: int, items: list):
+    """Modo listado: busca links de artículos y extrae cada uno."""
+    print(f"\n>>> URL (listado): {url}")
+    try:
+        _, html = _fetch(url)
+    except Exception as e:
+        print(f"  [ERROR] No se pudo descargar: {e}")
+        return
+    if not html:
+        print("  [ERROR] HTML vacío")
+        return
+    enlaces = _encontrar_links(html, url)
     if not enlaces:
         print("  [ERROR] No se encontraron enlaces a artículos")
         return
@@ -164,9 +161,12 @@ def _explorar_enlaces(enlaces: list, max_articulos: int, items: list):
             print("    \u2717 No se pudo extraer contenido")
 
 
-def start(urls: list[str], max_articulos: int = 5) -> _Result:
+def start(urls: list[str], max_articulos: int = 5, modo: str = "list") -> _Result:
     items = []
     for url in urls:
-        _procesar_url(url, max_articulos, items)
+        if modo == "single":
+            _procesar_individual(url, items)
+        else:
+            _procesar_listado(url, max_articulos, items)
     print(f"\n>>> Total artículos extraídos: {len(items)}")
     return _Result(items)

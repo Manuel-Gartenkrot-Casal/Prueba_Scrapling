@@ -7,12 +7,13 @@ from lm_studio import clasificar_articulo
 data = json.loads(sys.argv[1])
 urls = data.get("urls", [])
 max_articulos = data.get("max", 5)
+modo = data.get("modo", "list")
 
 if not urls:
     print("Error: lista de URLs vacía")
     exit(1)
 
-result = scraper_generico(urls, max_articulos)
+result = scraper_generico(urls, max_articulos, modo)
 items = list(result.items)
 print(f"\nArtículos encontrados: {len(items)}")
 for item in items:

@@ -252,9 +252,15 @@
     <span class="badge" id="badge-custom"></span>
   </div>
   <textarea id="urls-input" rows="4" style="width:100%; background:#0d0d0d; border:1px solid #2a2a2a; border-radius:5px; color:#ccc; padding:8px; font-size:0.82rem; font-family:inherit; resize:vertical; margin-bottom:10px;" placeholder="Pegá una URL por línea&#10;https://ejemplo.com/articulo1&#10;https://ejemplo.com/listado"></textarea>
-  <div class="row" style="margin-bottom:8px;">
-    <label style="color:#888; font-size:0.78rem; display:flex; align-items:center; gap:6px;">
-      Máx artículos por listado:
+  <div class="row" style="margin-bottom:8px; gap:14px;">
+    <label style="color:#888; font-size:0.78rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
+      <input type="radio" name="modo-custom" value="single" onchange="toggleModo()" style="accent-color:#f0b429;" /> Artículo individual
+    </label>
+    <label style="color:#888; font-size:0.78rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
+      <input type="radio" name="modo-custom" value="list" checked onchange="toggleModo()" style="accent-color:#f0b429;" /> Página de listado
+    </label>
+    <label id="label-max" style="color:#888; font-size:0.78rem; display:flex; align-items:center; gap:6px;">
+      Máx artículos:
       <input type="number" id="max-custom" value="5" min="1" max="50" style="width:60px; background:#0d0d0d; border:1px solid #2a2a2a; border-radius:4px; color:#ccc; padding:3px 6px; font-size:0.78rem;" />
     </label>
   </div>
@@ -535,6 +541,11 @@ function limpiarUrls() {
   $id('urls-input').value = '';
 }
 
+function toggleModo() {
+  const modo = document.querySelector('input[name="modo-custom"]:checked').value;
+  $id('label-max').style.display = modo === 'single' ? 'none' : 'flex';
+}
+
 async function runCustom() {
   const urls = obtenerUrls();
   if (urls.length === 0) {
@@ -546,6 +557,7 @@ async function runCustom() {
   const badge  = $id('badge-custom');
   const cont   = $id('output-container');
   const max    = parseInt($id('max-custom').value) || 5;
+  const modo   = document.querySelector('input[name="modo-custom"]:checked').value;
 
   deshabilitarTodo(true);
 
@@ -557,14 +569,15 @@ async function runCustom() {
   $id('currentSpider').classList.add('active');
 
   cont.innerHTML = '';
-  agregarLinea(`Iniciando scraping de ${urls.length} URL(s) (máx ${max} artículos por listado)...`, cont);
+  const modoLabel = modo === 'single' ? 'individual' : `listado (máx ${max} artículos)`;
+  agregarLinea(`Iniciando scraping de ${urls.length} URL(s) en modo ${modoLabel}...`, cont);
   agregarLinea('', cont);
 
   try {
     const res = await fetch('/api/stream/run-custom', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls, max }),
+      body: JSON.stringify({ urls, max, modo }),
     });
 
     if (!res.ok) {

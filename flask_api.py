@@ -147,9 +147,10 @@ def run_custom():
     body = request.get_json(silent=True) or {}
     urls = body.get("urls", [])
     max_articulos = body.get("max", 5)
+    modo = body.get("modo", "list")
     if not urls:
         return jsonify({"success": False, "error": "Lista de URLs vacía."}), 400
-    payload = json.dumps({"urls": urls, "max": max_articulos}, ensure_ascii=False)
+    payload = json.dumps({"urls": urls, "max": max_articulos, "modo": modo}, ensure_ascii=False)
     result = run_spider("runcustom.py", [payload])
     status = 200 if result["success"] else 500
     return jsonify(result), status
@@ -160,9 +161,10 @@ def stream_run_custom():
     body = request.get_json(silent=True) or {}
     urls = body.get("urls", [])
     max_articulos = body.get("max", 5)
+    modo = body.get("modo", "list")
     if not urls:
         return jsonify({"success": False, "error": "Lista de URLs vacía."}), 400
-    payload = json.dumps({"urls": urls, "max": max_articulos}, ensure_ascii=False)
+    payload = json.dumps({"urls": urls, "max": max_articulos, "modo": modo}, ensure_ascii=False)
     return Response(
         stream_with_context(_stream_output("runcustom.py", [payload])),
         mimetype="text/event-stream",

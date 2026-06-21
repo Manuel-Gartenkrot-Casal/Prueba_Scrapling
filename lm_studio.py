@@ -26,7 +26,7 @@ load_dotenv()
 LMSTUDIO_URL   = os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
 MODELO         = os.getenv("LMSTUDIO_MODEL", "ai21-jamba-reasoning-3b")
 
-# ── System prompt único (el que definiste) ─────────────────────────────────────
+# ── System prompt único (vos lo definiste) ─────────────────────────────────────
 
 SYSTEM_PROMPT = """\
 Eres un procesador de datos backend especializado en la industria de autopartes.
@@ -47,7 +47,7 @@ Debes devolver exactamente esta estructura:
 
 2. MODO REDACCIÓN
 Si el input contiene las etiquetas <REDACTAR> y <CONTEXTO>:
-Escribe un artículo basándote ÚNICAMENTE en la información provista en el <CONTEXTO>. No agregues datos externos ni alucines especificaciones.
+Escribe un artículo basándote ÚNICAMENTE en la información provista en el <CONTEXTO>. No agregues datos externos ni alucines especificaciones. Los documentos están ordenados del más reciente al más antiguo. Dale mayor peso a la información más reciente.
 Debes devolver exactamente esta estructura:
 {
   "accion": "redaccion",
@@ -65,8 +65,7 @@ def _call_lm(mensaje_usuario: str, temperature: float = 0.1, max_tokens: int = 2
     payload = {
         "model": MODELO,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": mensaje_usuario},
+            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{mensaje_usuario}"},
         ],
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -119,10 +118,19 @@ def clasificar_articulo(titulo: str, cuerpo: str) -> dict:
         return {"aprobado": True, "razon": f"modo degradado: {str(e)}"}
 
 
+def _extraer_delta(chunk: dict) -> str:
+    """Extrae contenido de un chunk de streaming, sea formato OpenAI o nativo llama.cpp."""
+    # Formato OpenAI: {"choices":[{"delta":{"content":"..."}}]}
+    delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+    if delta:
+        return delta
+    # Formato nativo llama.cpp: {"content":"...","stop":false}
+    return chunk.get("content", "")
+
+
 def generar_articulo(contexto: str) -> str:
     """
     Genera un artículo original a partir del contexto (varios documentos).
-    Hace streaming para mostrar feedback en tiempo real.
 
     Returns:
         str — artículo generado en Markdown
@@ -135,18 +143,20 @@ def generar_articulo(contexto: str) -> str:
     payload = {
         "model": MODELO,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": mensaje},
+            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{mensaje}"},
+            {"role": "assistant", "content": '{"accion": "redaccion",'},
         ],
         "temperature": 0.7,
-        "max_tokens": 2048,
+        "max_tokens": 4096,
         "stream": True,
     }
 
-    response = requests.post(_API_URL, json=payload, stream=True, timeout=120)
-    response.raise_for_status()
+    response = requests.post(_API_URL, json=payload, stream=True, timeout=180)
+    if not response.ok:
+        error_body = response.text[:2000]
+        raise RuntimeError(f"HTTP {response.status_code}: {error_body}")
 
-    articulo_raw = ""
+    partes = []
     for line in response.iter_lines():
         if not line:
             continue
@@ -157,16 +167,22 @@ def generar_articulo(contexto: str) -> str:
             break
         try:
             chunk = json.loads(text)
-            delta = chunk["choices"][0]["delta"].get("content", "")
-            articulo_raw += delta
+            if "error" in chunk:
+                print(f"\n[ERROR del modelo] {chunk.get('message', chunk['error'])}")
+                continue
+            delta = _extraer_delta(chunk)
+            partes.append(delta)
             print(delta, end="", flush=True)
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError:
             continue
 
     print()
+    articulo_raw = "".join(partes)
+    if not articulo_raw:
+        return ""
 
     try:
-        data = json.loads(articulo_raw)
+        data = json.loads('{"accion": "redaccion",' + articulo_raw)
         return data.get("articulo", articulo_raw)
     except json.JSONDecodeError:
         return articulo_raw
