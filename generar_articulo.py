@@ -32,6 +32,7 @@ FUENTES = {
     "ambito":      db["ambito"],
     "cenital":     db["cenital"],
     "perfil":      db["perfil"],
+    "custom":      db["custom"],
 }
 
 col_articulos = db["articulos_generados"]

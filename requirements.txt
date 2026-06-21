@@ -3,3 +3,6 @@ pymongo[srv]
 flask
 requests
 python-dotenv
+trafilatura
+beautifulsoup4
+lxml

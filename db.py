@@ -16,8 +16,9 @@ col_ambito      = db["ambito"]        # artículos de Ambito Financiero
 col_cenital     = db["cenital"]       # artículos de Cenital
 col_perfil      = db["perfil"]        # artículos de Perfil
 col_descartados = db["articulos_descartados"]
+col_custom = db["custom"]
 
-COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados]
+COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados, col_custom]
 
 
 def guardar_items(items, coleccion):

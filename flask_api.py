@@ -1,8 +1,9 @@
+import json
 import os
 import subprocess
 import sys
 import time
-from flask import Flask, jsonify, Response, stream_with_context
+from flask import Flask, jsonify, Response, request, stream_with_context
 
 app = Flask(__name__)
 
@@ -19,10 +20,11 @@ _TIMEOUT = 300  # 5 min por spider
 
 # ── Helper: ejecutar script y capturar salida completa ────────────────────────
 
-def run_spider(script: str) -> dict:
+def run_spider(script: str, extra_args: list[str] | None = None) -> dict:
+    cmd = [sys.executable, script] + (extra_args or [])
     try:
         result = subprocess.run(
-            [sys.executable, script],
+            cmd,
             capture_output=True,
             text=True,
             timeout=_TIMEOUT,
@@ -40,12 +42,13 @@ def run_spider(script: str) -> dict:
 
 # ── Helper: ejecutar script y transmitir salida línea por línea ────────────────
 
-def _stream_output(script: str):
+def _stream_output(script: str, extra_args: list[str] | None = None):
     """Ejecuta un script y produce su stdout línea por línea en tiempo real."""
     start = time.time()
+    cmd = [sys.executable, script] + (extra_args or [])
     try:
         process = subprocess.Popen(
-            [sys.executable, script],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -132,6 +135,36 @@ def stream_run_all():
 def stream_generar():
     return Response(
         stream_with_context(_stream_output("generar_articulo.py")),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── Endpoints para URLs custom ──────────────────────────────────────────────────
+
+@app.route("/run-custom", methods=["POST"])
+def run_custom():
+    body = request.get_json(silent=True) or {}
+    urls = body.get("urls", [])
+    max_articulos = body.get("max", 5)
+    if not urls:
+        return jsonify({"success": False, "error": "Lista de URLs vacía."}), 400
+    payload = json.dumps({"urls": urls, "max": max_articulos}, ensure_ascii=False)
+    result = run_spider("runcustom.py", [payload])
+    status = 200 if result["success"] else 500
+    return jsonify(result), status
+
+
+@app.route("/stream/run-custom", methods=["POST"])
+def stream_run_custom():
+    body = request.get_json(silent=True) or {}
+    urls = body.get("urls", [])
+    max_articulos = body.get("max", 5)
+    if not urls:
+        return jsonify({"success": False, "error": "Lista de URLs vacía."}), 400
+    payload = json.dumps({"urls": urls, "max": max_articulos}, ensure_ascii=False)
+    return Response(
+        stream_with_context(_stream_output("runcustom.py", [payload])),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

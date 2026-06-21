@@ -245,6 +245,25 @@
     </div>
     <div class="stats-line" id="stats-perfil"></div>
   </div>
+  <div class="card card-custom" id="card-custom" style="border-style: dashed;">
+  <div class="label">URLs Custom</div>
+  <div class="spider" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+    <span>Scraping genérico</span>
+    <span class="badge" id="badge-custom"></span>
+  </div>
+  <textarea id="urls-input" rows="4" style="width:100%; background:#0d0d0d; border:1px solid #2a2a2a; border-radius:5px; color:#ccc; padding:8px; font-size:0.82rem; font-family:inherit; resize:vertical; margin-bottom:10px;" placeholder="Pegá una URL por línea&#10;https://ejemplo.com/articulo1&#10;https://ejemplo.com/listado"></textarea>
+  <div class="row" style="margin-bottom:8px;">
+    <label style="color:#888; font-size:0.78rem; display:flex; align-items:center; gap:6px;">
+      Máx artículos por listado:
+      <input type="number" id="max-custom" value="5" min="1" max="50" style="width:60px; background:#0d0d0d; border:1px solid #2a2a2a; border-radius:4px; color:#ccc; padding:3px 6px; font-size:0.78rem;" />
+    </label>
+  </div>
+  <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
+    <button id="btn-custom" onclick="runCustom()">Scrapear URLs</button>
+    <button id="btn-custom-clear" class="btn-all" onclick="limpiarUrls()" style="font-size:0.72rem; padding:5px 12px;">Limpiar lista</button>
+  </div>
+  <div class="stats-line" id="stats-custom"></div>
+</div>
 </div>
 
 <div class="log-section">
@@ -499,6 +518,83 @@ async function runAll() {
   } finally {
     deshabilitarTodo(false);
     $id('globalPulse').classList.remove('active');
+  }
+}
+
+
+// ── Acción: generar artículo con IA ─────────────────────────────────────────
+
+// ── Acción: URLs custom ─────────────────────────────────────────────────────
+
+function obtenerUrls() {
+  const raw = $id('urls-input').value;
+  return raw.split('\n').map(s => s.trim()).filter(s => s.startsWith('http'));
+}
+
+function limpiarUrls() {
+  $id('urls-input').value = '';
+}
+
+async function runCustom() {
+  const urls = obtenerUrls();
+  if (urls.length === 0) {
+    agregarLinea('[ERROR] Ingresá al menos una URL válida.', $id('output-container'));
+    return;
+  }
+
+  const btn    = $id('btn-custom');
+  const badge  = $id('badge-custom');
+  const cont   = $id('output-container');
+  const max    = parseInt($id('max-custom').value) || 5;
+
+  deshabilitarTodo(true);
+
+  badge.className = 'badge running';
+  badge.textContent = 'Scrapeando...';
+  $id('card-custom').classList.add('active');
+  $id('globalPulse').classList.add('active');
+  $id('currentSpider').textContent = '\u25b6 URLs Custom';
+  $id('currentSpider').classList.add('active');
+
+  cont.innerHTML = '';
+  agregarLinea(`Iniciando scraping de ${urls.length} URL(s) (máx ${max} artículos por listado)...`, cont);
+  agregarLinea('', cont);
+
+  try {
+    const res = await fetch('/api/stream/run-custom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls, max }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    await leerStream(res, cont, {
+      onCompleto: () => {
+        badge.className = 'badge ok';
+        badge.textContent = '\u2713 Completado';
+        $id('card-custom').classList.remove('active');
+        $id('card-custom').classList.add('done');
+        const match = cont.textContent.match(/Aprobados:\s*(\d+).*?Rechazados:\s*(\d+)/s);
+        if (match) {
+          $id('stats-custom').innerHTML = `<span class="ok">${match[1]} guardados</span> \u00b7 <span class="err">${match[2]} descartados</span>`;
+        }
+      },
+    });
+  } catch (err) {
+    badge.className = 'badge error';
+    badge.textContent = '\u2717 Error';
+    $id('card-custom').classList.remove('active');
+    $id('card-custom').classList.add('fail');
+    agregarLinea(`[ERROR] ${err.message}`, cont);
+    autoScroll(cont);
+  } finally {
+    deshabilitarTodo(false);
+    $id('globalPulse').classList.remove('active');
+    $id('currentSpider').classList.remove('active');
   }
 }
 
