@@ -1,8 +1,10 @@
 import argparse
 import datetime
 import sys
-from db import db
-from lm_studio import generar_articulo as lm_generar
+import re
+from pymongo.errors import OperationFailure
+from db import db, crear_indices_texto
+from lm_studio import generar_articulo as lm_generar, extraer_temas
 
 FUENTES = {
     "lanacion":    db["autopartes"],
@@ -15,17 +17,52 @@ FUENTES = {
 
 col_articulos = db["articulos_generados"]
 
-TOKENS_POR_CARACTER = 0.28  # ~1 token cada 3.5 caracteres (~4 en español)
-_OVERHEAD_FIJO = 400        # system prompt + instrucciones
-_MARGEN_RESPUESTA = 2048    # tokens reservados para la respuesta del modelo
+TOKENS_POR_CARACTER = 0.28
+_OVERHEAD_FIJO = 400
+_MARGEN_RESPUESTA = 2048
 
 
 def _estimar_tokens(texto: str) -> int:
     return max(1, int(len(texto) * TOKENS_POR_CARACTER))
 
 
-def traer_documentos(coleccion, cantidad: int) -> list[dict]:
-    return list(coleccion.find().sort("_id", -1).limit(cantidad))
+def _formatear_doc(doc: dict, fuente: str, idx: int) -> tuple[str, int]:
+    titulo = doc.get("titulo", "(sin título)")
+    fecha = doc.get("fecha", "fecha desconocida")
+    cuerpo = doc.get("cuerpo", doc.get("bajada", "(sin contenido)"))
+    cuerpo = cuerpo[:1500] + "..." if len(cuerpo) > 1500 else cuerpo
+    texto = f"[#{idx} - {fuente} - {fecha}] {titulo}\nContenido: {cuerpo}\n"
+    return texto, _estimar_tokens(texto)
+
+
+def _buscar_por_tema(tema: str, limite_por_fuente: int = 20) -> list[tuple[dict, str, float]]:
+    resultados = []
+    for nombre, coleccion in FUENTES.items():
+        try:
+            cursor = coleccion.find(
+                {"$text": {"$search": tema}},
+                {"score": {"$meta": "textScore"}}
+            ).sort([("score", {"$meta": "textScore"})]).limit(limite_por_fuente)
+            for doc in cursor:
+                score = doc.get("score", 0)
+                resultados.append((doc, nombre, score))
+        except OperationFailure:
+            pass
+    resultados.sort(key=lambda x: x[2], reverse=True)
+    return resultados
+
+
+def _tema_ya_cubierto(tema: str, umbral: float = 0.1) -> bool:
+    try:
+        cursor = col_articulos.find(
+            {"$text": {"$search": tema}},
+            {"score": {"$meta": "textScore"}}
+        ).sort([("score", {"$meta": "textScore"})]).limit(1)
+        for doc in cursor:
+            return doc.get("score", 0) >= umbral
+    except OperationFailure:
+        pass
+    return False
 
 
 def marcar_usados(coleccion, ids: list) -> None:
@@ -36,69 +73,93 @@ def marcar_usados(coleccion, ids: list) -> None:
         )
 
 
-def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str]) -> None:
+def guardar_articulo(contenido: str, ids_usados: list, fuentes: list[str], tema: str) -> None:
     col_articulos.insert_one({
         "contenido":   contenido,
         "fuentes":     fuentes,
+        "tema":        tema,
         "docs_usados": [str(i) for i in ids_usados],
         "generado_en": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     })
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generador de artículos con IA (LM Studio)")
+    parser = argparse.ArgumentParser(description="Generador de artículos con IA + RAG (LM Studio)")
     parser.add_argument(
         "--fuente",
         nargs="+",
         choices=list(FUENTES.keys()),
         default=list(FUENTES.keys()),
         metavar="FUENTE",
-        help=f"Fuentes a usar: {', '.join(FUENTES.keys())}. Por defecto: todas.",
+        help="Fuentes a usar. Por defecto: todas.",
     )
-    parser.add_argument("--max-por-fuente", type=int, default=30,
-                        help="Máximo de documentos a obtener por fuente (default: 30)")
+    parser.add_argument("--max-por-fuente", type=int, default=30)
     parser.add_argument("--budget-contexto", type=int, default=0,
-                        help="Presupuesto de tokens para el contexto completo. 0 = auto (8192 - márgenes)")
+                        help="0 = auto (8192 - márgenes)")
+    parser.add_argument("--threshold-dedup", type=float, default=0.1,
+                        help="Umbral textScore para considerar tema cubierto (default: 0.1)")
     args = parser.parse_args()
 
-    # ── Calcular presupuesto ──────────────────────────────────────────────
+    # ── Asegurar índices de texto ────────────────────────────────────────
+    crear_indices_texto()
+
+    # ── Presupuesto ──────────────────────────────────────────────────────
     if args.budget_contexto <= 0:
         args.budget_contexto = 8192 - _MARGEN_RESPUESTA
     budget_docs = args.budget_contexto - _OVERHEAD_FIJO
 
-    # ── Recolectar documentos de todas las fuentes ────────────────────────
-    todos: list[tuple[dict, str]] = []  # (doc, nombre_fuente)
+    # ── 1. Traer recientes para extraer temas ────────────────────────────
+    recientes: list[dict] = []
     for nombre in args.fuente:
-        docs = traer_documentos(FUENTES[nombre], args.max_por_fuente)
-        print(f"{nombre:<12} {len(docs)} documentos disponibles")
-        for d in docs:
-            todos.append((d, nombre))
+        docs = list(FUENTES[nombre].find().sort("_id", -1).limit(5))
+        print(f"{nombre:<12} {len(docs)} docs recientes")
+        recientes.extend(docs)
 
-    if not todos:
+    if not recientes:
         print("No hay documentos en la base de datos.")
         return
 
-    # ── Ordenar por recencia (más reciente primero) y llenar presupuesto ──
-    todos.sort(key=lambda x: x[0]["_id"], reverse=True)
+    # ── 2. Extraer temas candidatos ──────────────────────────────────────
+    print("\nExtrayendo temas de los artículos recientes...")
+    temas = extraer_temas(recientes)
+    print(f"Temas candidatos: {', '.join(temas)}")
 
+    # ── 3. Elegir tema no cubierto ───────────────────────────────────────
+    tema_elegido = temas[0]
+    for t in temas:
+        if not _tema_ya_cubierto(t, args.threshold_dedup):
+            tema_elegido = t
+            break
+    print(f"Tema seleccionado: {tema_elegido}")
+
+    # ── 4. $text search en todas las fuentes ─────────────────────────────
+    print(f"Buscando documentos relacionados con: {tema_elegido}")
+    resultados = _buscar_por_tema(tema_elegido, args.max_por_fuente)
+
+    if not resultados:
+        print("Sin resultados de búsqueda, fallback a recencia.")
+        todos: list[tuple[dict, str]] = []
+        for nombre in args.fuente:
+            for d in FUENTES[nombre].find().sort("_id", -1).limit(args.max_por_fuente):
+                todos.append((d, nombre))
+        todos.sort(key=lambda x: x[0]["_id"], reverse=True)
+        rankeados = [(d, f, 0) for d, f in todos]
+    else:
+        rankeados = resultados
+
+    # ── 5. Llenar budget con los mejores docs ────────────────────────────
     contexto = ""
     seleccionados = []
     tokens_usados = _OVERHEAD_FIJO
     idx = 0
 
-    for doc, fuente in todos:
-        titulo = doc.get("titulo", "(sin título)")
-        fecha = doc.get("fecha", "fecha desconocida")
-        cuerpo = doc.get("cuerpo", doc.get("bajada", "(sin contenido)"))
-        cuerpo = cuerpo[:1500] + "..." if len(cuerpo) > 1500 else cuerpo
-        texto_doc = f"[#{idx + 1} - {fuente} - {fecha}] {titulo}\nContenido: {cuerpo}\n"
-
-        tokens_doc = _estimar_tokens(texto_doc)
+    for doc, fuente, score in rankeados:
+        texto_doc, tokens_doc = _formatear_doc(doc, fuente, idx + 1)
         if tokens_usados + tokens_doc > budget_docs:
             continue
         tokens_usados += tokens_doc
         idx += 1
-        contexto += f"\n── Fuente: {fuente} ──\n" + texto_doc
+        contexto += f"\n── Fuente: {fuente}{f' (relevancia: {score:.2f})' if score else ''} ──\n" + texto_doc
         seleccionados.append((doc, fuente))
 
     total_seleccion = len(seleccionados)
@@ -119,7 +180,7 @@ def main():
 
     todos_ids = [doc["_id"] for doc, _ in seleccionados]
     fuentes_usadas = list({f for _, f in seleccionados})
-    guardar_articulo(articulo, todos_ids, fuentes_usadas)
+    guardar_articulo(articulo, todos_ids, fuentes_usadas, tema_elegido)
 
     for nombre in fuentes_usadas:
         ids_fuente = [doc["_id"] for doc, f in seleccionados if f == nombre]

@@ -188,6 +188,47 @@ def generar_articulo(contexto: str) -> str:
         return articulo_raw
 
 
+# ── Prompt para extracción de temas ────────────────────────────────────────────
+
+PROMPT_TEMAS = """\
+Analizá los siguientes artículos y extraé los 3 temas principales que se tratan.
+Cada tema debe ser una frase corta de 2 a 5 palabras que capture el asunto central.
+Tu respuesta debe comenzar con "{" y terminar con "}". No incluyas texto fuera del JSON.
+
+Devolvé exactamente esta estructura:
+{
+  "temas": ["tema1", "tema2", "tema3"]
+}"""
+
+
+def extraer_temas(articulos: list[dict]) -> list[str]:
+    if not articulos or not _DISPONIBLE:
+        return ["autopartes aftermarket argentina"]
+
+    texto = ""
+    for i, doc in enumerate(articulos[:5], 1):
+        titulo = doc.get("titulo", "(sin título)")
+        cuerpo = doc.get("cuerpo", doc.get("bajada", ""))
+        texto += f"Artículo {i}: {titulo}\n{cuerpo[:500]}\n\n"
+
+    payload = {
+        "model": MODELO,
+        "messages": [{"role": "user", "content": f"{PROMPT_TEMAS}\n\n{texto}"}],
+        "temperature": 0.3,
+        "max_tokens": 512,
+        "stream": False,
+    }
+
+    try:
+        resp = requests.post(_API_URL, json=payload, timeout=60)
+        resp.raise_for_status()
+        data = json.loads(resp.json()["choices"][0]["message"]["content"].strip())
+        temas = data.get("temas", [])
+        return temas[:3] if temas else ["autopartes aftermarket argentina"]
+    except Exception:
+        return ["autopartes aftermarket argentina"]
+
+
 # ── Verificar conectividad al importar ────────────────────────────────────────
 
 verificar_conexion()

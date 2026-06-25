@@ -20,6 +20,28 @@ col_custom = db["custom"]
 
 COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados, col_custom]
 
+COLECCIONES_TEXTO = {
+    col_lanacion:    [("titulo", "text"), ("cuerpo", "text")],
+    col_aftermarket: [("titulo", "text"), ("bajada", "text"), ("cuerpo", "text")],
+    col_ambito:      [("titulo", "text"), ("cuerpo", "text")],
+    col_cenital:     [("titulo", "text"), ("cuerpo", "text")],
+    col_perfil:      [("titulo", "text"), ("cuerpo", "text")],
+    col_custom:      [("titulo", "text"), ("cuerpo", "text")],
+}
+
+
+def crear_indices_texto():
+    for col, campos in COLECCIONES_TEXTO.items():
+        try:
+            col.create_index(campos, default_language="spanish", name="text_search", background=True)
+        except Exception:
+            pass
+    try:
+        col_generados = db["articulos_generados"]
+        col_generados.create_index([("contenido", "text")], default_language="spanish", name="text_search", background=True)
+    except Exception:
+        pass
+
 
 def guardar_items(items, coleccion):
     """
