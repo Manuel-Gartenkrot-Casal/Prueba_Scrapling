@@ -18,8 +18,9 @@ FUENTES = {
 col_articulos = db["articulos_generados"]
 
 TOKENS_POR_CARACTER = 0.28
-_OVERHEAD_FIJO = 400
-_MARGEN_RESPUESTA = 2048
+_OVERHEAD_FIJO = 600
+_MARGEN_RESPUESTA = 4096
+_CONTEXTO_MAXIMO = 32768
 
 
 def _estimar_tokens(texto: str) -> int:
@@ -30,7 +31,7 @@ def _formatear_doc(doc: dict, fuente: str, idx: int) -> tuple[str, int]:
     titulo = doc.get("titulo", "(sin título)")
     fecha = doc.get("fecha", "fecha desconocida")
     cuerpo = doc.get("cuerpo", doc.get("bajada", "(sin contenido)"))
-    cuerpo = cuerpo[:1500] + "..." if len(cuerpo) > 1500 else cuerpo
+    cuerpo = cuerpo[:3500] + "..." if len(cuerpo) > 3500 else cuerpo
     texto = f"[#{idx} - {fuente} - {fecha}] {titulo}\nContenido: {cuerpo}\n"
     return texto, _estimar_tokens(texto)
 
@@ -93,9 +94,9 @@ def main():
         metavar="FUENTE",
         help="Fuentes a usar. Por defecto: todas.",
     )
-    parser.add_argument("--max-por-fuente", type=int, default=30)
+    parser.add_argument("--max-por-fuente", type=int, default=50)
     parser.add_argument("--budget-contexto", type=int, default=0,
-                        help="0 = auto (8192 - márgenes)")
+                        help="0 = auto (32768 - márgenes)")
     parser.add_argument("--threshold-dedup", type=float, default=0.1,
                         help="Umbral textScore para considerar tema cubierto (default: 0.1)")
     args = parser.parse_args()
@@ -105,13 +106,13 @@ def main():
 
     # ── Presupuesto ──────────────────────────────────────────────────────
     if args.budget_contexto <= 0:
-        args.budget_contexto = 8192 - _MARGEN_RESPUESTA
+        args.budget_contexto = _CONTEXTO_MAXIMO - _MARGEN_RESPUESTA
     budget_docs = args.budget_contexto - _OVERHEAD_FIJO
 
     # ── 1. Traer recientes para extraer temas ────────────────────────────
     recientes: list[dict] = []
     for nombre in args.fuente:
-        docs = list(FUENTES[nombre].find().sort("_id", -1).limit(5))
+        docs = list(FUENTES[nombre].find().sort("_id", -1).limit(10))
         print(f"{nombre:<12} {len(docs)} docs recientes")
         recientes.extend(docs)
 

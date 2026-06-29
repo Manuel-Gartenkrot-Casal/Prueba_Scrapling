@@ -151,7 +151,7 @@ def generar_articulo(contexto: str) -> str:
         "stream": True,
     }
 
-    response = requests.post(_API_URL, json=payload, stream=True, timeout=180)
+    response = requests.post(_API_URL, json=payload, stream=True, timeout=600)
     if not response.ok:
         error_body = response.text[:2000]
         raise RuntimeError(f"HTTP {response.status_code}: {error_body}")
