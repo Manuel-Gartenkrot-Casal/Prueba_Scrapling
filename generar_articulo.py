@@ -35,8 +35,9 @@ FUENTES = {
 col_articulos = db["articulos_generados"]
 
 TOKENS_POR_CARACTER = 0.28
-_OVERHEAD_FIJO = 400
-_MARGEN_RESPUESTA = 2048
+_OVERHEAD_FIJO = 600
+_MARGEN_RESPUESTA = 4096
+_CONTEXTO_MAXIMO = 32768
 
 # Parámetros de selección por embeddings (calibrados con la data real).
 UMBRAL_TOPICO = 0.70   # similitud mínima para considerar a un doc "vecino" de la semilla
@@ -54,7 +55,7 @@ def _formatear_doc(doc: dict, fuente: str, idx: int) -> tuple[str, int]:
     titulo = doc.get("titulo", "(sin título)")
     fecha = doc.get("fecha", "fecha desconocida")
     cuerpo = doc.get("cuerpo", doc.get("bajada", "(sin contenido)"))
-    cuerpo = cuerpo[:1500] + "..." if len(cuerpo) > 1500 else cuerpo
+    cuerpo = cuerpo[:3500] + "..." if len(cuerpo) > 3500 else cuerpo
     texto = f"[#{idx} - {fuente} - {fecha}] {titulo}\nContenido: {cuerpo}\n"
     return texto, _estimar_tokens(texto)
 
@@ -128,10 +129,11 @@ def main():
     parser.add_argument("--fuente", nargs="+", choices=list(FUENTES.keys()),
                         default=list(FUENTES.keys()), metavar="FUENTE",
                         help="Fuentes a usar. Por defecto: todas.")
-    parser.add_argument("--budget-contexto", type=int, default=0, help="0 = auto (8192 - márgenes)")
+    parser.add_argument("--budget-contexto", type=int, default=0, help="0 = auto (32768 - márgenes)")
     args = parser.parse_args()
 
-    budget = (args.budget_contexto if args.budget_contexto > 0 else 8192 - _MARGEN_RESPUESTA) - _OVERHEAD_FIJO
+    # Aprovecha el contexto de 32K (mejora de Manuel): más vecinos por tópico.
+    budget = (args.budget_contexto if args.budget_contexto > 0 else _CONTEXTO_MAXIMO - _MARGEN_RESPUESTA) - _OVERHEAD_FIJO
 
     # ── 1-2. Cargar candidatos y memoria de lo ya generado ───────────────
     candidatos = _cargar_candidatos(args.fuente)
