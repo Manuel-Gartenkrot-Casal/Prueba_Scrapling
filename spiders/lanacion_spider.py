@@ -71,10 +71,12 @@ class LanacionSpider:
         portada = StealthyFetcher.fetch(self.start_url, **FETCH_OPTS)
         notas = self._links(portada)
 
+        # Filtrar las ya procesadas ANTES de recortar, para quedarnos con las
+        # primeras MAX_ARTICULOS notas NUEVAS.
+        nuevas = [u for u in notas if u not in skip_urls]
+
         items = []
-        for url in notas[:MAX_ARTICULOS]:
-            if url in skip_urls:
-                continue
+        for url in nuevas[:MAX_ARTICULOS]:
             titulo, fecha, cuerpo = "", "", ""
             try:
                 pag = StealthyFetcher.fetch(url, **FETCH_OPTS)

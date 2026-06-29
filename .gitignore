@@ -16,5 +16,8 @@ express/dist/
 # Data local
 data/
 
+# Backups de la base (datos, no código)
+backups/
+
 # Segundo cerebro (Obsidian) — info interna del equipo, no subir al repo
 segundo-cerebro/

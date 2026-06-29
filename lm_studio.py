@@ -16,6 +16,7 @@ Nota: usa requests directamente, sin el paquete openai.
 
 import json
 import os
+import re
 import requests
 from dotenv import load_dotenv
 
@@ -25,6 +26,7 @@ load_dotenv()
 
 LMSTUDIO_URL   = os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
 MODELO         = os.getenv("LMSTUDIO_MODEL", "ai21-jamba-reasoning-3b")
+MODELO_EMB     = os.getenv("LMSTUDIO_EMB_MODEL", "text-embedding-nomic-embed-text-v1.5")
 
 # ── System prompt único (vos lo definiste) ─────────────────────────────────────
 
@@ -76,6 +78,24 @@ def _call_lm(mensaje_usuario: str, temperature: float = 0.1, max_tokens: int = 2
     return resp.json()["choices"][0]["message"]["content"].strip()
 
 
+def _extraer_json(texto: str) -> dict:
+    """
+    Parsea el JSON de la respuesta del modelo de forma tolerante.
+
+    Los modelos reasoning a veces anteponen un bloque <think>...</think>, fences
+    markdown (```json) o prosa antes del objeto. En vez de exigir que TODA la
+    respuesta sea JSON, quitamos ese ruido y tomamos del primer "{" al último "}".
+    """
+    # Quitar bloque de razonamiento <think>...</think>
+    texto = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
+    # Tomar del primer "{" al último "}" (descarta fences y prosa envolvente)
+    inicio = texto.find("{")
+    fin = texto.rfind("}")
+    if inicio == -1 or fin == -1 or fin < inicio:
+        raise json.JSONDecodeError("sin objeto JSON en la respuesta", texto, 0)
+    return json.loads(texto[inicio:fin + 1])
+
+
 def verificar_conexion() -> bool:
     """Verifica que LM Studio responda. Devuelve True si está disponible."""
     global _DISPONIBLE
@@ -107,7 +127,7 @@ def clasificar_articulo(titulo: str, cuerpo: str) -> dict:
 
     try:
         respuesta = _call_lm(mensaje, temperature=0.1)
-        data = json.loads(respuesta)
+        data = _extraer_json(respuesta)
         return {
             "aprobado": data.get("aprobado", False),
             "razon": data.get("razon", "Sin razón especificada"),
@@ -222,11 +242,39 @@ def extraer_temas(articulos: list[dict]) -> list[str]:
     try:
         resp = requests.post(_API_URL, json=payload, timeout=60)
         resp.raise_for_status()
-        data = json.loads(resp.json()["choices"][0]["message"]["content"].strip())
+        data = _extraer_json(resp.json()["choices"][0]["message"]["content"])
         temas = data.get("temas", [])
         return temas[:3] if temas else ["autopartes aftermarket argentina"]
     except Exception:
         return ["autopartes aftermarket argentina"]
+
+
+# ── Embeddings ─────────────────────────────────────────────────────────────────
+
+_EMB_URL = f"{LMSTUDIO_URL}/embeddings"
+
+
+def calcular_embedding(texto: str) -> list[float] | None:
+    """
+    Devuelve el vector de embedding (significado) del texto, o None si falla.
+
+    El vector se calcula UNA vez por artículo y se guarda en la BD; agrupar y
+    comparar después es pura matemática (similitud coseno), sin volver a llamar
+    al modelo. El modelo nomic admite ~8k tokens, truncamos por seguridad.
+    """
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    try:
+        resp = requests.post(
+            _EMB_URL,
+            json={"model": MODELO_EMB, "input": texto[:8000]},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["data"][0]["embedding"]
+    except Exception:
+        return None
 
 
 # ── Verificar conectividad al importar ────────────────────────────────────────

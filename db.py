@@ -99,6 +99,16 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
             })
 
     if aprobados:
+        # Vectorizar cada artículo aprobado para que nazca con su embedding.
+        # Import diferido: embeddings.py importa db, así evitamos el ciclo.
+        # Si LM Studio no responde, se guarda sin vector y el backfill lo agarra.
+        from embeddings import texto_para_embedding
+        from lm_studio import calcular_embedding
+        for item in aprobados:
+            vec = calcular_embedding(texto_para_embedding(item))
+            if vec:
+                item["embedding"] = vec
+
         operaciones = [
             UpdateOne(
                 {"url": item["url"]},

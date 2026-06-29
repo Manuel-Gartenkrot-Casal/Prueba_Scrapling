@@ -32,15 +32,17 @@ def _fetch(url: str):
 def _extraer_titulo(html: str) -> str:
     """Extrae título del HTML cuando Trafilatura no lo encuentra."""
     soup = BeautifulSoup(html, "lxml")
-    # Intentar h1
+    # og:title / twitter:title primero: es el título canónico del artículo y el
+    # más fiable. El primer <h1> a veces es un widget o nombre de sección
+    # (ej. Motor Show devuelve "Edição Da Semana" en el h1), por eso va después.
+    og = soup.find("meta", property="og:title") or soup.find("meta", attrs={"name": "twitter:title"})
+    if og and (c := og.get("content", "").strip()):
+        return c
+    # h1 como segunda opción
     h1 = soup.find("h1")
     if h1 and (t := h1.get_text(strip=True)):
         return t
-    # Intentar og:title
-    og = soup.find("meta", property="og:title") or soup.find("meta", attrs={"name": "twitter:title"})
-    if og and (c := og.get("content", "")):
-        return c.strip()
-    # Intentar title tag
+    # <title> como último recurso (suele traer sufijo del sitio)
     title = soup.find("title")
     if title and (t := title.get_text(strip=True)):
         return t

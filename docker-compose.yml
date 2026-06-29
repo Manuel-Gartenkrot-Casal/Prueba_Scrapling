@@ -10,6 +10,21 @@ services:
       - MONGO_URI=${MONGO_URI}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Montamos el código Python para no rebuildear la imagen en cada cambio.
+    # Solo pisa el código en /app; Playwright/camoufox viven fuera y no se tocan.
+    volumes:
+      - ./spiders:/app/spiders
+      - ./db.py:/app/db.py
+      - ./flask_api.py:/app/flask_api.py
+      - ./lm_studio.py:/app/lm_studio.py
+      - ./embeddings.py:/app/embeddings.py
+      - ./generar_articulo.py:/app/generar_articulo.py
+      - ./runlanacion.py:/app/runlanacion.py
+      - ./runaftermarket.py:/app/runaftermarket.py
+      - ./runambito.py:/app/runambito.py
+      - ./runcenital.py:/app/runcenital.py
+      - ./runperfil.py:/app/runperfil.py
+      - ./runcustom.py:/app/runcustom.py
     networks:
       - app
 

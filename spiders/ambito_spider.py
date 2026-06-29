@@ -72,10 +72,12 @@ class AmbitoSpider:
 
         # 2) Visitar cada nota y extraer el cuerpo. Si falla, igual guardamos
         #    título + url para no perder el artículo.
+        # Filtrar las ya procesadas ANTES de recortar, para quedarnos con las
+        # primeras MAX_ARTICULOS notas NUEVAS.
+        nuevas = [n for n in notas if n["url"] not in skip_urls]
+
         items = []
-        for nota in notas[:MAX_ARTICULOS]:
-            if nota["url"] in skip_urls:
-                continue
+        for nota in nuevas[:MAX_ARTICULOS]:
             fecha, cuerpo = "", ""
             try:
                 pag = StealthyFetcher.fetch(nota["url"], **FETCH_OPTS)

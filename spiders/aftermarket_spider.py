@@ -62,10 +62,13 @@ class AftermarketSpider:
             vistos.add(href)
             notas.append(href)
 
+        # Filtramos las ya procesadas ANTES de recortar, para quedarnos con las
+        # primeras MAX_ARTICULOS notas NUEVAS (sino, si las de arriba ya están en
+        # la BD, siempre devolvería 0 aunque haya notas nuevas más abajo).
+        nuevas = [u for u in notas if u not in skip_urls]
+
         items = []
-        for url in notas[:MAX_ARTICULOS]:
-            if url in skip_urls:
-                continue
+        for url in nuevas[:MAX_ARTICULOS]:
             titulo, bajada, cuerpo = "", "", ""
             try:
                 pag = StealthyFetcher.fetch(url, **FETCH_OPTS)
