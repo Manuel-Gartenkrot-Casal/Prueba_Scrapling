@@ -21,6 +21,8 @@ services:
       - "3000:3000"
     environment:
       - SCRAPERS_URL=http://scrapers:5000
+    volumes:
+      - ./express/src/public:/app/dist/public
     depends_on:
       - scrapers
     networks:

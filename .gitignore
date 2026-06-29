@@ -15,3 +15,6 @@ express/dist/
 
 # Data local
 data/
+
+# Segundo cerebro (Obsidian) — info interna del equipo, no subir al repo
+segundo-cerebro/
