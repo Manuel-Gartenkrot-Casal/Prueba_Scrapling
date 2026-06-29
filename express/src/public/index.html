@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scraping Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -200,6 +201,112 @@
       cursor: pointer;
     }
     .clear-btn:hover { background: #1a1a1a; color: #888; }
+
+    /* ── Modal ──────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,.72);
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 780px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 48px rgba(0,0,0,.6);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 22px;
+      border-bottom: 1px solid #242424;
+      flex-shrink: 0;
+    }
+    .modal-header h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      margin: 0;
+    }
+    .modal-header .modal-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .modal-header .modal-close:hover { background: #242424; color: #ccc; }
+    .modal-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      padding: 12px 22px;
+      background: #121212;
+      border-bottom: 1px solid #242424;
+      font-size: 0.74rem;
+      color: #666;
+      flex-shrink: 0;
+    }
+    .modal-meta strong { color: #888; }
+    .modal-body {
+      padding: 22px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .modal-body::-webkit-scrollbar { width: 6px; }
+    .modal-body::-webkit-scrollbar-track { background: transparent; }
+    .modal-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    .modal-empty {
+      color: #555;
+      text-align: center;
+      padding: 48px 22px;
+    }
+    .modal-empty .icon { font-size: 2rem; margin-bottom: 12px; }
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      padding: 12px 22px;
+      border-top: 1px solid #242424;
+      flex-shrink: 0;
+    }
+    .modal-footer button { font-size: 0.78rem; }
+
+    /* ── Markdown renderizado ───────────────────────────────────────────── */
+    .modal-body h1 { font-size: 1.15rem; color: #fff; margin: 0 0 10px; }
+    .modal-body h2 { font-size: 1rem;  color: #e0e0e0; margin: 16px 0 8px; }
+    .modal-body h3 { font-size: 0.9rem; color: #ccc; margin: 12px 0 6px; }
+    .modal-body p  { margin: 0 0 10px; line-height: 1.65; color: #b0b0b0; }
+    .modal-body ul, .modal-body ol { margin: 0 0 10px; padding-left: 22px; color: #b0b0b0; }
+    .modal-body li { margin-bottom: 4px; }
+    .modal-body strong { color: #e0e0e0; }
+    .modal-body a { color: #5c8aff; }
+    .modal-body code {
+      background: #0d0d0d; padding: 2px 6px; border-radius: 3px;
+      font-size: 0.82rem; color: #ce93d8;
+    }
+    .modal-body pre {
+      background: #0d0d0d; border: 1px solid #242424; border-radius: 6px;
+      padding: 14px; overflow-x: auto; margin: 0 0 14px;
+    }
+    .modal-body pre code { background: none; padding: 0; }
+    .modal-body blockquote {
+      border-left: 3px solid #333; margin: 0 0 10px; padding: 6px 14px;
+      color: #888; font-style: italic;
+    }
+    .modal-body hr { border: none; border-top: 1px solid #242424; margin: 16px 0; }
   </style>
 </head>
 <body>
@@ -220,6 +327,7 @@
   <span class="badge" id="badge-all"></span>
   <button class="btn-big btn-ai" id="btn-generar" onclick="generar()">Generar artículo con IA</button>
   <span class="badge" id="badge-generar"></span>
+  <button class="btn-big" id="btn-ultimo" onclick="verUltimoArticulo()" style="background:#1e1e1e;color:#e0e0e0;border:1px solid #333;">Ver último artículo</button>
 </div>
 
 <div class="grid">
@@ -298,6 +406,27 @@
       </div>
     </div>
     <div class="stats-line" id="stats-custom"></div>
+  </div>
+</div>
+
+<!-- ── Modal: último artículo ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-articulo" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Último artículo generado</h2>
+      <button class="modal-close" onclick="cerrarModal()">&times;</button>
+    </div>
+    <div class="modal-meta" id="modal-meta"></div>
+    <div class="modal-body" id="modal-body">
+      <div class="modal-empty" id="modal-empty">
+        <div class="icon">&#128196;</div>
+        <p>No hay artículos generados aún.<br>Generá uno con el botón <strong>Generar artículo con IA</strong>.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="copiarArticulo()">Copiar al portapapeles</button>
+      <button class="btn-all" onclick="cerrarModal()">Cerrar</button>
+    </div>
   </div>
 </div>
 
@@ -558,6 +687,70 @@ async function runAll() {
 
 
 // ── Acción: generar artículo con IA ─────────────────────────────────────────
+
+// ── Modal: último artículo ─────────────────────────────────────────────────
+
+async function verUltimoArticulo() {
+  const modal  = $id('modal-articulo');
+  const body   = $id('modal-body');
+  const meta   = $id('modal-meta');
+  const empty  = $id('modal-empty');
+
+  body.innerHTML = '<div class="modal-empty"><div class="icon">⏳</div><p>Cargando...</p></div>';
+  meta.innerHTML = '';
+  modal.classList.add('open');
+
+  try {
+    const res = await fetch('/api/ultimo-articulo');
+    const data = await res.json();
+
+    if (!data.success || !data.articulo) {
+      body.innerHTML = '<div class="modal-empty"><div class="icon">&#128196;</div><p>No hay artículos generados aún.<br>Generá uno con el botón <strong>Generar artículo con IA</strong>.</p></div>';
+      return;
+    }
+
+    const a = data.articulo;
+
+    meta.innerHTML = `
+      <span><strong>Tema:</strong> ${escHtml(a.tema || '(sin tema)')}</span>
+      <span><strong>Fuentes:</strong> ${(a.fuentes||[]).join(', ') || 'N/A'}</span>
+      <span><strong>Generado:</strong> ${a.generado_en ? new Date(a.generado_en).toLocaleString('es-AR') : 'N/A'}</span>
+    `;
+
+    let html;
+    try {
+      html = marked.parse(a.contenido || '');
+    } catch {
+      html = '<pre>' + escHtml(a.contenido || '') + '</pre>';
+    }
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = `<div class="modal-empty"><div class="icon">⚠️</div><p>Error al cargar: ${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function cerrarModal() {
+  $id('modal-articulo').classList.remove('open');
+}
+
+function copiarArticulo() {
+  const body = $id('modal-body');
+  const texto = body.textContent || '';
+  navigator.clipboard.writeText(texto).then(() => {
+    const btn = document.querySelector('.modal-footer button');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = orig, 1800);
+  }).catch(() => {
+    alert('No se pudo copiar el contenido.');
+  });
+}
+
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 // ── Acción: URLs custom ─────────────────────────────────────────────────────
 

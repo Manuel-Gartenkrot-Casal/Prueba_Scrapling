@@ -56,6 +56,20 @@ app.post('/api/generar', async (_req: Request, res: Response): Promise<void> => 
   }
 });
 
+app.get('/api/ultimo-articulo', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/ultimo-articulo`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    const axiosErr = err as AxiosError<{ error?: string }>;
+    if (axiosErr.response?.status === 404) {
+      res.status(404).json({ success: false, error: 'Todavía no hay artículos generados.' });
+      return;
+    }
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
 app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
   try {
     const { data } = await axios.get(`${SCRAPERS_URL}/health`, { timeout: 5_000 });

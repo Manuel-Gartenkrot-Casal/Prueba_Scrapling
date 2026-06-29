@@ -98,6 +98,25 @@ def run_all():
     return jsonify({"success": ok_global, "output": "\n\n".join(salidas)}), (200 if ok_global else 500)
 
 
+@app.route("/ultimo-articulo", methods=["GET"])
+def ultimo_articulo():
+    from db import db
+    col = db["articulos_generados"]
+    doc = col.find_one({}, sort=[("generado_en", -1)])
+    if not doc:
+        return jsonify({"success": False, "error": "Todavía no hay artículos generados."}), 404
+    return jsonify({
+        "success": True,
+        "articulo": {
+            "contenido":   doc.get("contenido", ""),
+            "tema":        doc.get("tema", ""),
+            "fuentes":     doc.get("fuentes", []),
+            "generado_en": doc.get("generado_en", ""),
+            "docs_usados": doc.get("docs_usados", []),
+        }
+    })
+
+
 @app.route("/generar", methods=["POST"])
 def generar():
     result = run_spider("generar_articulo.py")
