@@ -15,7 +15,7 @@ SPIDERS = {
     "perfil":      "runperfil.py",
 }
 
-_TIMEOUT = 300  # 5 min por spider
+_TIMEOUT = 900  # 15 min (spiders < 2 min, generación IA ~5-10 min)
 
 
 # ── Helper: ejecutar script y capturar salida completa ────────────────────────

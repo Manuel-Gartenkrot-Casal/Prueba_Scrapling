@@ -9,7 +9,7 @@ Usa un único system prompt con dos modalidades vía etiquetas:
 
 Configuración vía .env:
   LMSTUDIO_URL    (default: http://localhost:1234/v1)
-  LMSTUDIO_MODEL  (default: ai21-jamba-reasoning-3b)
+  LMSTUDIO_MODEL  (default: mistral-7b-instruct-v0.3)
 
 Nota: usa requests directamente, sin el paquete openai.
 """
@@ -25,7 +25,7 @@ load_dotenv()
 # ── Config desde .env ──────────────────────────────────────────────────────────
 
 LMSTUDIO_URL   = os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
-MODELO         = os.getenv("LMSTUDIO_MODEL", "ai21-jamba-reasoning-3b")
+MODELO         = os.getenv("LMSTUDIO_MODEL", "mistral-7b-instruct-v0.3")
 MODELO_EMB     = os.getenv("LMSTUDIO_EMB_MODEL", "text-embedding-nomic-embed-text-v1.5")
 
 # ── System prompt único (vos lo definiste) ─────────────────────────────────────
@@ -273,7 +273,8 @@ def calcular_embedding(texto: str) -> list[float] | None:
         )
         resp.raise_for_status()
         return resp.json()["data"][0]["embedding"]
-    except Exception:
+    except Exception as e:
+        print(f"[AVISO] No se pudo calcular embedding: {e}. Verificá LMSTUDIO_EMB_MODEL en .env")
         return None
 
 

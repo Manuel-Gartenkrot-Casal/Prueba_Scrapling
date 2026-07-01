@@ -19,7 +19,7 @@ import argparse
 import datetime
 import sys
 
-from db import db
+from db import db, crear_indices_texto
 from lm_studio import generar_articulo as lm_generar, calcular_embedding
 from embeddings import coseno, texto_para_embedding
 
@@ -43,8 +43,9 @@ _CONTEXTO_MAXIMO = 32768
 UMBRAL_TOPICO = 0.70   # similitud mínima para considerar a un doc "vecino" de la semilla
 MIN_VECINOS   = 2      # una semilla necesita al menos esta cantidad de vecinos
 K_VECINOS     = 8      # cuántos vecinos como máximo entran al tópico
-UMBRAL_DEDUP  = 0.85   # si el artículo generado supera esto vs uno previo, se descarta
+UMBRAL_DEDUP  = 0.92   # si el artículo generado supera esto vs uno previo, se descarta
 MAX_INTENTOS  = 4      # cuántas semillas probar antes de rendirse
+LIMITE_TEXT   = 10     # docs por fuente en la búsqueda $text
 
 
 def _estimar_tokens(texto: str) -> int:
@@ -108,6 +109,31 @@ def _vecinos(semilla: dict, candidatos: list[dict]) -> list[tuple[dict, float]]:
     return cercanos[:K_VECINOS]
 
 
+def _buscar_por_tema(tema: str, limite: int = LIMITE_TEXT) -> list[tuple[dict, float]]:
+    """$text search en todas las fuentes. Devuelve [(doc, textScore_normalizado)]."""
+    docs = []
+    for nombre, col in FUENTES.items():
+        try:
+            cursor = col.find(
+                {"$text": {"$search": tema}},
+                {"text_score": {"$meta": "textScore"}},
+            ).sort([("text_score", {"$meta": "textScore"})]).limit(limite)
+            for d in cursor:
+                d["_fuente"] = nombre
+                docs.append((d, d.get("text_score", 0.0)))
+        except Exception:
+            continue
+
+    if not docs:
+        return []
+
+    max_score = max(s for _, s in docs)
+    if max_score > 0:
+        docs = [(d, s / max_score) for d, s in docs]
+    docs.sort(key=lambda x: x[1], reverse=True)
+    return docs
+
+
 def guardar_articulo(contenido, ids_usados, fuentes, tema, embedding) -> None:
     col_articulos.insert_one({
         "contenido":   contenido,
@@ -135,6 +161,9 @@ def main():
     # Aprovecha el contexto de 32K (mejora de Manuel): más vecinos por tópico.
     budget = (args.budget_contexto if args.budget_contexto > 0 else _CONTEXTO_MAXIMO - _MARGEN_RESPUESTA) - _OVERHEAD_FIJO
 
+    # Asegurar índices $text para la búsqueda híbrida.
+    crear_indices_texto()
+
     # ── 1-2. Cargar candidatos y memoria de lo ya generado ───────────────
     candidatos = _cargar_candidatos(args.fuente)
     print(f"Artículos con embedding disponibles: {len(candidatos)}")
@@ -161,8 +190,26 @@ def main():
             print(f"   semilla con pocos vecinos ({len(vecinos)}), probando otra...")
             continue
 
-        # Armar el paquete temático: semilla + vecinos, hasta llenar el budget.
-        paquete = [(semilla, semilla["_fuente"], 1.0)] + [(d, d["_fuente"], s) for d, s in vecinos]
+        # ── Hybrid: merge KNN + $text search ───────────────────────────
+        texto_docs = _buscar_por_tema(tema)
+        merged = {}
+        for d, s in vecinos:
+            merged[d["_id"]] = {"doc": d, "fuente": d["_fuente"], "knn": s, "text": 0.0}
+        for d, s in texto_docs:
+            if d["_id"] in merged:
+                merged[d["_id"]]["text"] = s
+            else:
+                merged[d["_id"]] = {"doc": d, "fuente": d["_fuente"], "knn": 0.0, "text": s}
+
+        hermanos = sorted(merged.values(), key=lambda x: max(x["knn"], x["text"]), reverse=True)
+        print(f"   vecinos KNN: {len(vecinos)}, $text: {len(texto_docs)}, pool único: {len(hermanos)}")
+
+        paquete = [(semilla, semilla["_fuente"], 1.0)]
+        for item in hermanos:
+            if item["doc"]["_id"] == semilla["_id"]:
+                continue
+            paquete.append((item["doc"], item["fuente"], max(item["knn"], item["text"])))
+
         contexto = ""
         seleccionados = []
         tokens = _OVERHEAD_FIJO

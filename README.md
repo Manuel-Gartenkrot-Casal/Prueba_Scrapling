@@ -152,39 +152,41 @@ La conexión está configurada en `db.py`. Los artículos no se duplican: se usa
 
 ## Generación de artículos con IA
 
-Lee los artículos scrapeados de MongoDB y genera un artículo periodístico usando la API de **NVIDIA** (modelo `google/gemma-3n-e4b-it`). El artículo generado se guarda en la colección `articulos_generados`.
+Usa **LM Studio** (local) con el modelo `mistral-7b-instruct-v0.3` para generar artículos originales combinando contenido scrapeado. Pipeline híbrido:
 
-### Configuración
+1. **KNN**: selecciona la semilla más novedosa (coseno entre embeddings) y encuentra vecinos semánticos
+2. **RAG ($text search)**: busca documentos relacionados por tema en MongoDB
+3. **Merge**: combina ambos pools rankeando por `max(similitud_coseno, textScore)`
+4. **Redacción**: LM Studio escribe el artículo con el contexto completo (~28K tokens)
+5. **Dedup**: verifica que el artículo generado no se parezca a uno previo (coseno ≥ 0.85 = descarte)
 
-Creá un archivo `.env` en la raíz del proyecto con tu API key de NVIDIA:
+### Requisitos
 
+- [LM Studio](https://lmstudio.ai/) corriendo con el modelo cargado
+- Configurar `.env`:
+
+```env
+LMSTUDIO_URL=http://localhost:1234/v1
+LMSTUDIO_MODEL=mistral-7b-instruct-v0.3
+# LMSTUDIO_EMB_MODEL=text-embedding-nomic-embed-text-v1.5  # opcional, para embeddings
 ```
-NVIDIA_API_KEY=tu_clave_aqui
-```
-
-Podés conseguir una clave gratuita en [build.nvidia.com](https://build.nvidia.com).
 
 ### Uso
 
 ```bash
-# Genera un artículo combinando las 5 fuentes (3 docs c/u)
 python generar_articulo.py
 
-# Solo una fuente
-python generar_articulo.py --fuente lanacion
-python generar_articulo.py --fuente aftermarket
-python generar_articulo.py --fuente ambito
-python generar_articulo.py --fuente cenital
-python generar_articulo.py --fuente perfil
-
-# Combinar fuentes específicas
-python generar_articulo.py --fuente lanacion ambito perfil
-
-# Usar más documentos como base
-python generar_articulo.py --cantidad 5
+# Filtrar por fuentes
+python generar_articulo.py --fuente lanacion aftermarket
 ```
 
-El artículo se imprime en consola y se guarda en la colección `articulos_generados`. Cada documento fuente se marca como `usado_para_articulo: true` para no repetirlo en generaciones futuras.
+El artículo se imprime en consola y se guarda en `articulos_generados` con su embedding para dedup futuro. Los documentos fuente se marcan como `usado_para_articulo: true`.
+
+### Backfill de embeddings (si hay artículos previos al cambio)
+
+```bash
+python embeddings.py
+```
 
 ---
 
