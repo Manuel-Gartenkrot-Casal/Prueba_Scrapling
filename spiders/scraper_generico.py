@@ -2,13 +2,14 @@ import json
 import re
 from urllib.parse import urlparse, urljoin
 
+import requests
 from bs4 import BeautifulSoup
 from scrapling.fetchers import StealthyFetcher
 import trafilatura
 
-FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 25000}
+FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 15000}
 
-_PAGINAS_SALTAR = ["login", "register", "search", "tag", "author", "category", "contact", "about", "privacy", "terms"]
+_PAGINAS_SALTAR = ["login", "register", "search", "tag", "author", "category", "contact", "about", "privacy", "terms", "moneda"]
 
 
 class _Result:
@@ -16,16 +17,59 @@ class _Result:
         self.items = items
 
 
-def _fetch(url: str):
-    """Fetch URL and return (pag_object, html_string)."""
-    pag = StealthyFetcher.fetch(url, **FETCH_OPTS)
+def _http_get(url: str, timeout: int = 15) -> str | None:
+    """HTTP GET básico sin headless."""
+    try:
+        r = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+        r.raise_for_status()
+        return r.text
+    except Exception:
+        return None
+
+
+def _fetch_wayback(url: str) -> str | None:
+    """Fallback: obtener HTML desde Wayback Machine (Archive.org)."""
+    for ano in ["2026", "2025", "2024"]:
+        html = _http_get(f"https://web.archive.org/web/{ano}/{url}")
+        if html and urlparse(url).path.rstrip("/").split("/")[-1] in html:
+            return html
+    return None
+
+
+def _extraer_html(pag) -> str | None:
+    """Extrae texto HTML de un objeto page de StealthyFetcher."""
     if hasattr(pag, "body") and pag.body:
         raw = pag.body
-        html = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
-    elif hasattr(pag, "text") and pag.text:
-        html = pag.text
-    else:
-        html = None
+        return raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
+    if hasattr(pag, "text") and pag.text:
+        return pag.text
+    return None
+
+
+def _fetch(url: str):
+    """Fetch URL y devuelve (pag_object, html_string).
+
+    Estrategia: headless browser primero; si falla, Wayback Machine.
+    """
+    html = None
+    pag = None
+
+    # 1 — Headless browser (Playwright)
+    try:
+        pag = StealthyFetcher.fetch(url, **FETCH_OPTS)
+        html = _extraer_html(pag)
+    except Exception:
+        pag = None
+
+    if html:
+        return pag, html
+
+    # 2 — Fallback: Wayback Machine
+    print("  [FALLBACK] Usando Wayback Machine...")
+    html = _fetch_wayback(url)
+    if html:
+        return None, html
+
     return pag, html
 
 
@@ -88,7 +132,8 @@ def _encontrar_links(html: str, base_url: str) -> list[str]:
     dominio = urlparse(base_url).netloc
     soup = BeautifulSoup(html, "lxml")
     vistos = set()
-    articulos = []
+    con_fecha = []
+    sin_fecha = []
 
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
@@ -102,12 +147,13 @@ def _encontrar_links(html: str, base_url: str) -> list[str]:
             continue
 
         # Links con fecha en la URL (ej: /2025/11/17/) son casi siempre artículos
-        prioridad = 0 if _PATRON_FECHA.search(url_completa) else 1
-        articulos.append((prioridad, -len(texto), url_completa))
+        if _PATRON_FECHA.search(url_completa):
+            con_fecha.append(url_completa)
+        else:
+            sin_fecha.append(url_completa)
 
-    # Ordenar: primero los que tienen fecha, luego por longitud de texto descendente
-    articulos.sort()
-    return [url for _, _, url in articulos]
+    # Orden DOM: primero los que tienen fecha, después el resto (mismo orden que en página)
+    return con_fecha + sin_fecha
 
 
 def _procesar_individual(url: str, items: list):
@@ -144,10 +190,11 @@ def _procesar_listado(url: str, max_articulos: int, items: list):
     if not enlaces:
         print("  [ERROR] No se encontraron enlaces a artículos")
         return
-    total = min(len(enlaces), max_articulos)
-    print(f"  \u2192 {len(enlaces)} enlaces encontrados, procesando {total}...")
-    for i, link in enumerate(enlaces[:max_articulos]):
-        print(f"  [{i+1}/{total}] {link}")
+    print(f"  \u2192 {len(enlaces)} enlaces encontrados, buscando {max_articulos} artículos...")
+    for i, link in enumerate(enlaces):
+        if len(items) >= max_articulos:
+            break
+        print(f"  [{i+1}/{len(enlaces)}] {link}")
         try:
             _, html_link = _fetch(link)
         except Exception as e:

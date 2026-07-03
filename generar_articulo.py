@@ -20,7 +20,7 @@ import datetime
 import sys
 
 from db import db, crear_indices_texto
-from lm_studio import generar_articulo as lm_generar, calcular_embedding
+from lm_studio import generar_articulo as lm_generar, calcular_embedding, research_contexto
 from embeddings import coseno, texto_para_embedding
 
 FUENTES = {
@@ -30,6 +30,7 @@ FUENTES = {
     "cenital":     db["cenital"],
     "perfil":      db["perfil"],
     "custom":      db["custom"],
+    "afterdrive":  db["afterdrive"],
 }
 
 col_articulos = db["articulos_generados"]
@@ -43,8 +44,8 @@ _CONTEXTO_MAXIMO = 32768
 UMBRAL_TOPICO = 0.70   # similitud mínima para considerar a un doc "vecino" de la semilla
 MIN_VECINOS   = 2      # una semilla necesita al menos esta cantidad de vecinos
 K_VECINOS     = 8      # cuántos vecinos como máximo entran al tópico
-UMBRAL_DEDUP  = 0.92   # si el artículo generado supera esto vs uno previo, se descarta
-MAX_INTENTOS  = 4      # cuántas semillas probar antes de rendirse
+UMBRAL_DEDUP  = 0.95   # si el artículo generado supera esto vs uno previo, se descarta
+MAX_INTENTOS  = 3      # cuántas semillas probar antes de rendirse
 LIMITE_TEXT   = 10     # docs por fuente en la búsqueda $text
 
 
@@ -221,10 +222,18 @@ def main():
             contexto += f"\n── Fuente: {fuente} (afinidad: {sim:.2f}) ──\n" + texto_doc
             seleccionados.append((doc, fuente))
 
+        # Truncar contexto para research pass (ventana de contexto del modelo ~8-16K tokens)
+        RESEARCH_MAX_TOKENS = 4000
+        RESEARCH_MAX_CHARS = RESEARCH_MAX_TOKENS * 4  # ~4 chars/token
+        research_ctx = contexto[:RESEARCH_MAX_CHARS] if len(contexto) > RESEARCH_MAX_CHARS else contexto
+
         print(f"   tópico armado: {len(seleccionados)} artículos (~{tokens} tokens)")
+        print(f"   research pass: extrayendo datos del contexto... ({len(research_ctx)} chars)")
+        research = research_contexto(research_ctx)
+        print(f"   research brief: {len(research)} chars")
         print("=" * 60)
         try:
-            articulo = lm_generar(contexto)
+            articulo = lm_generar(contexto, research)
         except Exception as e:
             print(f"\nError al generar: {e}")
             sys.exit(1)

@@ -13,6 +13,7 @@ SPIDERS = {
     "ambito":      "runambito.py",
     "cenital":     "runcenital.py",
     "perfil":      "runperfil.py",
+    "afterdrive":  "runafterdrive.py",
 }
 
 _TIMEOUT = 900  # 15 min (spiders < 2 min, generación IA ~5-10 min)

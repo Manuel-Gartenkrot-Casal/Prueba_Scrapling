@@ -25,6 +25,7 @@ services:
       - ./runcenital.py:/app/runcenital.py
       - ./runperfil.py:/app/runperfil.py
       - ./runcustom.py:/app/runcustom.py
+      - ./runafterdrive.py:/app/runafterdrive.py
     networks:
       - app
 

@@ -48,8 +48,26 @@ Debes devolver exactamente esta estructura:
 }
 
 2. MODO REDACCIÓN
-Si el input contiene las etiquetas <REDACTAR> y <CONTEXTO>:
-Escribe un artículo basándote ÚNICAMENTE en la información provista en el <CONTEXTO>. No agregues datos externos ni alucines especificaciones. Los documentos están ordenados del más reciente al más antiguo. Dale mayor peso a la información más reciente.
+Si el input contiene las etiquetas <REDACTAR>, <CONTEXTO> y <RESEARCH>:
+Escribe un artículo de análisis del sector automotor / autopartes. Usá las siguientes secciones (## en Markdown). Adaptá el enfoque según los datos disponibles: si el CONTEXTO habla de una empresa específica, la estructura funciona igual aplicada a ese caso.
+
+  ## Introducción
+  Arrancar con un hecho fuerte, dato concreto, oración corta. Sin rodeos. Una o dos líneas que enganchen al lector.
+
+  ## La paradoja del repuesto
+  Explicar que una alta circulación de autos usados es una **oportunidad** para el aftermarket (más vehículos en uso = más necesidad de mantenimiento y repuestos). El verdadero problema no es la demanda, sino la presión de costos locales frente a la oferta de importados (China, Brasil) y la falta de canales eficientes entre fabricantes, distribuidores y talleres.
+
+  ## El contraataque digital
+  Conectar los desafíos del sector con soluciones tecnológicas concretas: digitalización de catálogos y stock, fichas técnicas impecables, presencia en marketplaces, venta omnicanal. Mostrar que la ventaja competitiva ya no está solo en la fábrica, sino en la eficiencia comercial.
+
+REGLAS DE ESTILO:
+- **Oraciones cortas. Verbos activos. Lenguaje directo B2B.** El lector ideal es un distribuidor, fabricante o gerente del sector: tiene que sentir que le hablan a su realidad del día a día.
+- **Evitar repeticiones.** No uses más de una vez frases como "la industria de las autopartes argentina", "impactado negativamente" o "competitividad". Reformulá con sinónimos o cambiando la estructura de la oración.
+- **Cada párrafo debe aportar un dato nuevo.** Si no hay más datos concretos del contexto, cerrá la sección y pasá a la siguiente. No estirar con relleno ni generalidades.
+- **No alucines.** Basate ÚNICAMENTE en la información del <CONTEXTO> y del <RESEARCH>.
+- Destacá en **negrita** todas las cifras, porcentajes, nombres de empresas y fechas.
+- Si el contexto contiene citas textuales de ejecutivos, incluilas en *cursiva* con el nombre del autor.
+
 Debes devolver exactamente esta estructura:
 {
   "accion": "redaccion",
@@ -148,9 +166,10 @@ def _extraer_delta(chunk: dict) -> str:
     return chunk.get("content", "")
 
 
-def generar_articulo(contexto: str) -> str:
+def generar_articulo(contexto: str, research: str = "") -> str:
     """
-    Genera un artículo original a partir del contexto (varios documentos).
+    Genera un artículo original a partir del contexto (varios documentos)
+    y opcionalmente un research brief con datos extraídos.
 
     Returns:
         str — artículo generado en Markdown
@@ -158,7 +177,10 @@ def generar_articulo(contexto: str) -> str:
     if not _DISPONIBLE:
         raise RuntimeError("LM Studio no está disponible. Iniciá el servidor y reintentá.")
 
-    mensaje = f"<REDACTAR>\n<CONTEXTO>\n{contexto}\n</CONTEXTO>"
+    if research:
+        mensaje = f"<REDACTAR>\n<CONTEXTO>\n{contexto}\n</CONTEXTO>\n<RESEARCH>\n{research}\n</RESEARCH>"
+    else:
+        mensaje = f"<REDACTAR>\n<CONTEXTO>\n{contexto}\n</CONTEXTO>"
 
     payload = {
         "model": MODELO,
@@ -167,7 +189,7 @@ def generar_articulo(contexto: str) -> str:
             {"role": "assistant", "content": '{"accion": "redaccion",'},
         ],
         "temperature": 0.7,
-        "max_tokens": 4096,
+        "max_tokens": 6144,
         "stream": True,
     }
 
@@ -247,6 +269,52 @@ def extraer_temas(articulos: list[dict]) -> list[str]:
         return temas[:3] if temas else ["autopartes aftermarket argentina"]
     except Exception:
         return ["autopartes aftermarket argentina"]
+
+
+# ── Research pass ──────────────────────────────────────────────────────────────
+
+PROMPT_RESEARCH = """\
+Analizá el contexto provisto y extraé un research brief con TODOS los datos relevantes.
+Incluí: nombres de empresas, nombres de ejecutivos con sus cargos, cifras exactas,
+porcentajes, fechas, citas textuales entre comillas, y tendencias mencionadas.
+
+Prestá atención especial a:
+- Competencia de importados (China, Brasil) vs producción local de autopartes
+- Oportunidades en el mercado de reposición / aftermarket (parque automotor usado)
+- Desafíos de digitalización, e-commerce y catálogos digitales en el sector
+- Costos locales vs internacionales y su impacto en competitividad
+- Datos sobre marketplaces, venta online, omnicanalidad
+
+Devolvé exactamente esta estructura JSON:
+{
+  "empresas": ["nombre1", "nombre2"],
+  "ejecutivos": [{"nombre": "...", "cargo": "...", "cita": "..."}],
+  "datos": [{"que": "...", "valor": "..."}],
+  "tendencias": ["..."],
+  "tema_principal": "..."
+}"""
+
+
+def research_contexto(contexto: str) -> str:
+    if not _DISPONIBLE:
+        return '{"empresas":[],"ejecutivos":[],"datos":[],"tendencias":[],"tema_principal":""}'
+
+    payload = {
+        "model": MODELO,
+        "messages": [{"role": "user", "content": f"{PROMPT_RESEARCH}\n\n{contexto}"}],
+        "temperature": 0.1,
+        "max_tokens": 1024,
+        "stream": False,
+    }
+
+    try:
+        resp = requests.post(_API_URL, json=payload, timeout=60)
+        resp.raise_for_status()
+        texto = resp.json()["choices"][0]["message"]["content"].strip()
+        data = _extraer_json(texto)
+        return json.dumps(data, ensure_ascii=False)
+    except Exception:
+        return '{"empresas":[],"ejecutivos":[],"datos":[],"tendencias":[],"tema_principal":""}'
 
 
 # ── Embeddings ─────────────────────────────────────────────────────────────────

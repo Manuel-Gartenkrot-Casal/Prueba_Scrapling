@@ -14,14 +14,14 @@ import math
 
 from db import (
     col_lanacion, col_aftermarket, col_ambito,
-    col_cenital, col_perfil, col_custom,
+    col_cenital, col_perfil, col_custom, col_afterdrive,
 )
 from lm_studio import calcular_embedding
 
 # Colecciones de contenido (excluye 'articulos_descartados').
 COLECCIONES_CONTENIDO = [
     col_lanacion, col_aftermarket, col_ambito,
-    col_cenital, col_perfil, col_custom,
+    col_cenital, col_perfil, col_custom, col_afterdrive,
 ]
 
 

@@ -28,6 +28,7 @@ COPY runambito.py .
 COPY runcenital.py .
 COPY runperfil.py .
 COPY runcustom.py .
+COPY runafterdrive.py .
 COPY spiders/ ./spiders/
 COPY .env .
 

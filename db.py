@@ -17,8 +17,9 @@ col_cenital     = db["cenital"]       # artículos de Cenital
 col_perfil      = db["perfil"]        # artículos de Perfil
 col_descartados = db["articulos_descartados"]
 col_custom = db["custom"]
+col_afterdrive = db["afterdrive"]
 
-COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados, col_custom]
+COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados, col_custom, col_afterdrive]
 
 COLECCIONES_TEXTO = {
     col_lanacion:    [("titulo", "text"), ("cuerpo", "text")],
@@ -27,6 +28,7 @@ COLECCIONES_TEXTO = {
     col_cenital:     [("titulo", "text"), ("cuerpo", "text")],
     col_perfil:      [("titulo", "text"), ("cuerpo", "text")],
     col_custom:      [("titulo", "text"), ("cuerpo", "text")],
+    col_afterdrive:  [("titulo", "text"), ("cuerpo", "text")],
 }
 
 
