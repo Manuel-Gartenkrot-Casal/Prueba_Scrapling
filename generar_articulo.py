@@ -17,11 +17,23 @@ Flujo (ver charla de diseño):
 
 import argparse
 import datetime
+import re
 import sys
 
 from db import db, crear_indices_texto
 from lm_studio import generar_articulo as lm_generar, calcular_embedding, research_contexto
 from embeddings import coseno, texto_para_embedding
+
+_PAYWALL_PATTERNS = [
+    r"El contenido al que quiere acceder es exclusivo para suscriptores",
+    r"acceso exclusivo para suscriptores",
+    r"iniciá sesión o suscribite",
+    r"Este contenido es solo para",
+    r"ya puedes acceder a este artículo",
+    r"¿Ya tienes una cuenta?",
+    r"Registrate para leer más",
+    r"Suscribite para continuar",
+]
 
 FUENTES = {
     "lanacion":    db["autopartes"],
@@ -53,10 +65,17 @@ def _estimar_tokens(texto: str) -> int:
     return max(1, int(len(texto) * TOKENS_POR_CARACTER))
 
 
+def _limpiar_paywall(texto: str) -> str:
+    for pat in _PAYWALL_PATTERNS:
+        texto = re.sub(pat, "", texto, flags=re.IGNORECASE)
+    return texto.strip()
+
+
 def _formatear_doc(doc: dict, fuente: str, idx: int) -> tuple[str, int]:
     titulo = doc.get("titulo", "(sin título)")
     fecha = doc.get("fecha", "fecha desconocida")
     cuerpo = doc.get("cuerpo", doc.get("bajada", "(sin contenido)"))
+    cuerpo = _limpiar_paywall(cuerpo)
     cuerpo = cuerpo[:3500] + "..." if len(cuerpo) > 3500 else cuerpo
     texto = f"[#{idx} - {fuente} - {fecha}] {titulo}\nContenido: {cuerpo}\n"
     return texto, _estimar_tokens(texto)

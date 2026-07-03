@@ -2,7 +2,7 @@
 lm_studio.py
 
 Cliente para LM Studio (API compatible con OpenAI).
-Usa un único system prompt con dos modalidades vía etiquetas:
+Usa dos system prompts separados (evaluación y redacción):
 
   <EVALUAR>  → clasifica artículos por relevancia + calidad
   <REDACTAR> → genera artículos originales a partir de contexto
@@ -30,49 +30,50 @@ MODELO_EMB     = os.getenv("LMSTUDIO_EMB_MODEL", "text-embedding-nomic-embed-tex
 
 # ── System prompt único (vos lo definiste) ─────────────────────────────────────
 
-SYSTEM_PROMPT = """\
-Eres un procesador de datos backend especializado en la industria de autopartes.
-Tu ÚNICA salida permitida es un objeto JSON válido y estrictamente formateado.
-REGLA CRÍTICA: NO incluyas saludos, explicaciones, introducciones, ni texto markdown fuera del JSON. Tu respuesta debe comenzar obligatoriamente con el carácter "{" y terminar con el carácter "}".
+_SYSTEM_EVALUAR = """\
+Eres un clasificador de contenido especializado en la industria de autopartes.
+Tu ÚNICA salida permitida es un objeto JSON válido.
+REGLA CRÍTICA: No incluyas texto fuera del JSON.
 
-INSTRUCCIONES DE PROCESAMIENTO:
-
-1. MODO EVALUACIÓN
-Si el input contiene la etiqueta <EVALUAR>:
+Si el input contiene <EVALUAR>:
 Determina si el texto está estrictamente relacionado con piezas mecánicas, repuestos o catálogos de autopartes. Rechaza cualquier texto sobre ventas de vehículos, seguros o anécdotas.
-Debes devolver exactamente esta estructura:
+
+Debes devolver exactamente:
 {
   "accion": "evaluacion",
   "aprobado": boolean,
-  "razon": "string (máximo 15 palabras con el motivo de aprobación/rechazo)"
-}
+  "razon": "string (máximo 15 palabras)"
+}"""
 
-2. MODO REDACCIÓN
-Si el input contiene las etiquetas <REDACTAR>, <CONTEXTO> y <RESEARCH>:
-Escribe un artículo de análisis del sector automotor / autopartes. Usá las siguientes secciones (## en Markdown). Adaptá el enfoque según los datos disponibles: si el CONTEXTO habla de una empresa específica, la estructura funciona igual aplicada a ese caso.
+_SYSTEM_REDACTAR = """\
+Eres un redactor especializado en la industria de autopartes y aftermarket.
+Tu ÚNICA salida permitida es UN SOLO objeto JSON con esta estructura exacta:
+{"accion": "redaccion", "articulo": "string (artículo en Markdown usando \\n para saltos de línea)"}
+
+REGLA CRÍTICA: No incluyas evaluaciones, ni múltiples objetos JSON, ni texto fuera del JSON. Debes devolver un único objeto, no más.
+
+Si el input contiene <REDACTAR>, <CONTEXTO> y <RESEARCH>:
+Escribe un artículo de análisis del sector automotor / autopartes con estas secciones (## en Markdown):
 
   ## Introducción
   Arrancar con un hecho fuerte, dato concreto, oración corta. Sin rodeos. Una o dos líneas que enganchen al lector.
 
   ## La paradoja del repuesto
-  Explicar que una alta circulación de autos usados es una **oportunidad** para el aftermarket (más vehículos en uso = más necesidad de mantenimiento y repuestos). El verdadero problema no es la demanda, sino la presión de costos locales frente a la oferta de importados (China, Brasil) y la falta de canales eficientes entre fabricantes, distribuidores y talleres.
+  Explicar que una alta circulación de autos usados es una **oportunidad** para el aftermarket (más vehículos en uso = más necesidad de mantenimiento y repuestos). El verdadero problema no es la demanda, sino la presión de costos locales frente a la oferta de importados y la falta de canales eficientes entre fabricantes, distribuidores y talleres.
 
   ## El contraataque digital
   Conectar los desafíos del sector con soluciones tecnológicas concretas: digitalización de catálogos y stock, fichas técnicas impecables, presencia en marketplaces, venta omnicanal. Mostrar que la ventaja competitiva ya no está solo en la fábrica, sino en la eficiencia comercial.
 
-REGLAS DE ESTILO:
-- **Oraciones cortas. Verbos activos. Lenguaje directo B2B.** El lector ideal es un distribuidor, fabricante o gerente del sector: tiene que sentir que le hablan a su realidad del día a día.
-- **Evitar repeticiones.** No uses más de una vez frases como "la industria de las autopartes argentina", "impactado negativamente" o "competitividad". Reformulá con sinónimos o cambiando la estructura de la oración.
-- **Cada párrafo debe aportar un dato nuevo.** Si no hay más datos concretos del contexto, cerrá la sección y pasá a la siguiente. No estirar con relleno ni generalidades.
-- **No alucines.** Basate ÚNICAMENTE en la información del <CONTEXTO> y del <RESEARCH>.
-- Destacá en **negrita** todas las cifras, porcentajes, nombres de empresas y fechas.
-- Si el contexto contiene citas textuales de ejecutivos, incluilas en *cursiva* con el nombre del autor.
+FILTRO TEMÁTICO: El artículo debe versar EXCLUSIVAMENTE sobre autopartes, aftermarket, repuestos, fabricación o digitalización del sector. No incluyas seguros, venta de vehículos 0km, anécdotas de consumidores, ni información no relacionada con autopartes.
 
-Debes devolver exactamente esta estructura:
-{
-  "accion": "redaccion",
-  "articulo": "string (el artículo completo formateado en Markdown usando \\n para saltos de línea)"
-}"""
+REGLAS DE ESTILO:
+- Oraciones cortas. Verbos activos. Lenguaje directo B2B.
+- NO repitas información. Cada ejemplo debe conectar con la tesis de la sección.
+- No alucines. Basate ÚNICAMENTE en el <CONTEXTO> y <RESEARCH>.
+- NO incluyas frases de paywall, suscripción o "contenido exclusivo".
+- Revisá ortografía y concordancia gramatical.
+- Destacá en **negrita** cifras, porcentajes, empresas y fechas.
+- Las citas textuales de ejecutivos en *cursiva* con el nombre del autor."""
 
 _API_URL = f"{LMSTUDIO_URL}/chat/completions"
 _DISPONIBLE = True
@@ -85,7 +86,7 @@ def _call_lm(mensaje_usuario: str, temperature: float = 0.1, max_tokens: int = 2
     payload = {
         "model": MODELO,
         "messages": [
-            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{mensaje_usuario}"},
+            {"role": "user", "content": f"{_SYSTEM_EVALUAR}\n\n{mensaje_usuario}"},
         ],
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -112,6 +113,22 @@ def _extraer_json(texto: str) -> dict:
     if inicio == -1 or fin == -1 or fin < inicio:
         raise json.JSONDecodeError("sin objeto JSON en la respuesta", texto, 0)
     return json.loads(texto[inicio:fin + 1])
+
+
+def _extraer_primer_json(texto: str) -> dict:
+    """Extrae el PRIMER objeto JSON completo. Si hay múltiples JSONs, descarta todo después del primero."""
+    inicio = texto.find("{")
+    if inicio == -1:
+        raise json.JSONDecodeError("sin '{' en la respuesta", texto, 0)
+    depth = 0
+    for i in range(inicio, len(texto)):
+        if texto[i] == "{":
+            depth += 1
+        elif texto[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return json.loads(texto[inicio:i + 1])
+    raise json.JSONDecodeError("JSON sin cerrar en la respuesta", texto, inicio)
 
 
 def verificar_conexion() -> bool:
@@ -185,7 +202,7 @@ def generar_articulo(contexto: str, research: str = "") -> str:
     payload = {
         "model": MODELO,
         "messages": [
-            {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{mensaje}"},
+            {"role": "user", "content": f"{_SYSTEM_REDACTAR}\n\n{mensaje}"},
             {"role": "assistant", "content": '{"accion": "redaccion",'},
         ],
         "temperature": 0.7,
@@ -224,7 +241,7 @@ def generar_articulo(contexto: str, research: str = "") -> str:
         return ""
 
     try:
-        data = json.loads('{"accion": "redaccion",' + articulo_raw)
+        data = _extraer_primer_json('{"accion": "redaccion",' + articulo_raw)
         return data.get("articulo", articulo_raw)
     except json.JSONDecodeError:
         return articulo_raw
