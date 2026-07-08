@@ -7,28 +7,21 @@ load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/PruebaScrapling")
 
+# ── Base de Datos ─────────────────────────────────────────────────────────────
+
 client = MongoClient(MONGO_URI)
 db = client["PruebaScrapling"]
 
-col_lanacion    = db["autopartes"]    # artículos de La Nacion
-col_aftermarket = db["aftermarket"]   # artículos de Mundo Aftermarket
-col_ambito      = db["ambito"]        # artículos de Ambito Financiero
-col_cenital     = db["cenital"]       # artículos de Cenital
-col_perfil      = db["perfil"]        # artículos de Perfil
-col_descartados = db["articulos_descartados"]
-col_custom = db["custom"]
-col_afterdrive = db["afterdrive"]
+col_articulos    = db["articulos"]        # Todos los artículos scrapeados
+col_trusted_urls = db["trusted_urls"]     # Lista blanca de URLs confiables
+col_descartados  = db["articulos_descartados"]
+col_afterdrive   = db["afterdrive"]
 
-COLECCIONES_URLS = [col_lanacion, col_aftermarket, col_ambito, col_cenital, col_perfil, col_descartados, col_custom, col_afterdrive]
+COLECCIONES_URLS = [col_articulos, col_afterdrive]
 
 COLECCIONES_TEXTO = {
-    col_lanacion:    [("titulo", "text"), ("cuerpo", "text")],
-    col_aftermarket: [("titulo", "text"), ("bajada", "text"), ("cuerpo", "text")],
-    col_ambito:      [("titulo", "text"), ("cuerpo", "text")],
-    col_cenital:     [("titulo", "text"), ("cuerpo", "text")],
-    col_perfil:      [("titulo", "text"), ("cuerpo", "text")],
-    col_custom:      [("titulo", "text"), ("cuerpo", "text")],
-    col_afterdrive:  [("titulo", "text"), ("cuerpo", "text")],
+    col_articulos:  [("titulo", "text"), ("cuerpo", "text")],
+    col_afterdrive: [("titulo", "text"), ("cuerpo", "text")],
 }
 
 
@@ -75,17 +68,21 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
 
     aprobados = []
     detalles = []
+    total = len(items)
 
-    for item in items:
+    for i, item in enumerate(items, 1):
         titulo = item.get("titulo", "(sin título)")
         cuerpo = item.get("cuerpo", item.get("bajada", ""))
+        print(f"  Clasificando [{i}/{total}]: {titulo[:70]}")
 
         resultado = clasificador_fn(titulo, cuerpo)
 
         if resultado["aprobado"]:
+            print(f"    -> Aprobado")
             aprobados.append(item)
             detalles.append({"titulo": titulo, "estado": "aprobado"})
         else:
+            print(f"    -> Rechazado: {resultado.get('razon', '')[:80]}")
             col_descartados.replace_one(
                 {"url": item.get("url", "")},
                 {
@@ -101,12 +98,12 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
             })
 
     if aprobados:
-        # Vectorizar cada artículo aprobado para que nazca con su embedding.
-        # Import diferido: embeddings.py importa db, así evitamos el ciclo.
-        # Si LM Studio no responde, se guarda sin vector y el backfill lo agarra.
+        print(f"  Generando embeddings para {len(aprobados)} artículo(s) aprobado(s)...")
         from embeddings import texto_para_embedding
         from lm_studio import calcular_embedding
-        for item in aprobados:
+        for j, item in enumerate(aprobados, 1):
+            titulo = item.get("titulo", "(sin título)")
+            print(f"  Embedding [{j}/{len(aprobados)}]: {titulo[:60]}")
             vec = calcular_embedding(texto_para_embedding(item))
             if vec:
                 item["embedding"] = vec

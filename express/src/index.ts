@@ -47,9 +47,9 @@ app.post('/api/run-all', async (_req: Request, res: Response): Promise<void> => 
   }
 });
 
-app.post('/api/generar', async (_req: Request, res: Response): Promise<void> => {
+app.post('/api/generar', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { data } = await axios.post(`${SCRAPERS_URL}/generar`, {}, { timeout: 660_000 });
+    const { data } = await axios.post(`${SCRAPERS_URL}/generar`, req.body, { timeout: 660_000 });
     res.json(data);
   } catch (err) {
     res.status(500).json({ success: false, error: extraerError(err) });
@@ -121,7 +121,177 @@ app.post('/api/stream/run/:spider', (req: Request, res: Response) => {
 
 app.post('/api/stream/run-all', crearProxyStreaming('/stream/run-all'));
 
-app.post('/api/stream/generar', crearProxyStreaming('/stream/generar'));
+app.post('/api/stream/generar', (req: Request, res: Response) => {
+  const parsed = new URL(SCRAPERS_URL);
+  const payload = JSON.stringify(req.body || {});
+  const opts: http.RequestOptions = {
+    hostname: parsed.hostname,
+    port: parsed.port || 5000,
+    path: '/stream/generar',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  };
+  const proxyReq = http.request(opts, (proxyRes) => {
+    res.status(proxyRes.statusCode || 200);
+    res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', () => {
+    res.status(500).json({ success: false, error: 'No se pudo conectar con el servicio de scrapers.' });
+  });
+  proxyReq.write(payload);
+  proxyReq.end();
+});
+
+// ── Nuevos endpoints de la API Flask ──────────────────────────────────────
+
+// GET /api/check-volume
+app.get('/api/check-volume', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const kw = req.query.keyword || '';
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/check-volume?keyword=${encodeURIComponent(String(kw))}`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/add-url
+app.post('/api/add-url', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/add-url`, req.body, { timeout: 300_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// GET /api/scraping-config
+app.get('/api/scraping-config', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/scraping-config`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/scraping-config
+app.post('/api/scraping-config', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/scraping-config`, req.body, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/run-automation
+app.post('/api/run-automation', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/run-automation`, {}, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/stream/run-automation
+app.post('/api/stream/run-automation', (req: Request, res: Response) => {
+  const parsed = new URL(SCRAPERS_URL);
+  const opts: http.RequestOptions = {
+    hostname: parsed.hostname,
+    port: parsed.port || 5000,
+    path: '/api/stream/run-automation',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  };
+  const proxyReq = http.request(opts, (proxyRes) => {
+    res.status(proxyRes.statusCode || 200);
+    res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', () => {
+    res.status(500).json({ success: false, error: 'No se pudo conectar con el servicio de scrapers.' });
+  });
+  proxyReq.write(JSON.stringify({}));
+  proxyReq.end();
+});
+
+// GET /api/trusted-urls-stats
+app.get('/api/trusted-urls-stats', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/trusted-urls-stats`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/discover-sources
+app.post('/api/discover-sources', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/discover-sources`, {}, { timeout: 300_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// GET /api/suggested-urls
+app.get('/api/suggested-urls', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/suggested-urls`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/evaluate-article
+app.post('/api/evaluate-article', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/evaluate-article`, req.body, { timeout: 60_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/stream/add-url
+app.post('/api/stream/add-url', (req: Request, res: Response) => {
+  const parsed = new URL(SCRAPERS_URL);
+  const payload = JSON.stringify(req.body);
+  const opts: http.RequestOptions = {
+    hostname: parsed.hostname,
+    port: parsed.port || 5000,
+    path: '/stream/add-url',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  };
+  const proxyReq = http.request(opts, (proxyRes) => {
+    res.status(proxyRes.statusCode || 200);
+    res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', () => {
+    res.status(500).json({ success: false, error: 'No se pudo conectar con el servicio de scrapers.' });
+  });
+  proxyReq.write(payload);
+  proxyReq.end();
+});
 
 // ── Endpoints para URLs custom ─────────────────────────────────────────────
 

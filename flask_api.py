@@ -1,28 +1,26 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import time
+import threading
 from flask import Flask, jsonify, Response, request, stream_with_context
+from flask_cors import CORS
+from db import db, col_articulos
+import scheduler
 
 app = Flask(__name__)
+CORS(app)
 
-SPIDERS = {
-    "lanacion":    "runlanacion.py",
-    "aftermarket": "runaftermarket.py",
-    "ambito":      "runambito.py",
-    "cenital":     "runcenital.py",
-    "perfil":      "runperfil.py",
-    "afterdrive":  "runafterdrive.py",
-}
-
-_TIMEOUT = 900  # 15 min (spiders < 2 min, generación IA ~5-10 min)
-
+_TIMEOUT = 1800  # 30 min (generación IA ~15-25 min en CPU)
 
 # ── Helper: ejecutar script y capturar salida completa ────────────────────────
 
-def run_spider(script: str, extra_args: list[str] | None = None) -> dict:
+def run_script(script: str, extra_args: list[str] | None = None) -> dict:
     cmd = [sys.executable, script] + (extra_args or [])
+    _LM_LOG = re.compile(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]')
+    _FILTERED_ERR_LOG = re.compile(r'.*Channel Error.*', re.IGNORECASE)
     try:
         result = subprocess.run(
             cmd,
@@ -30,16 +28,17 @@ def run_spider(script: str, extra_args: list[str] | None = None) -> dict:
             text=True,
             timeout=_TIMEOUT,
         )
+        out_lines = [l for l in result.stdout.splitlines(True) if not _LM_LOG.match(l)]
+        err_lines = [l for l in result.stderr.splitlines(True) if not _FILTERED_ERR_LOG.match(l)]
         return {
             "success": result.returncode == 0,
-            "output": result.stdout,
-            "error":  result.stderr if result.returncode != 0 else "",
+            "output": "".join(out_lines),
+            "error": "".join(err_lines) if result.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "output": "", "error": "Timeout: el spider tardó más de 5 minutos."}
+        return {"success": False, "output": "", "error": "Timeout: el proceso tardó más de 15 minutos."}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}
-
 
 # ── Helper: ejecutar script y transmitir salida línea por línea ────────────────
 
@@ -57,53 +56,44 @@ def _stream_output(script: str, extra_args: list[str] | None = None):
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
 
+        _LM_LOG = re.compile(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]')
         for line in process.stdout:
             if time.time() - start > _TIMEOUT:
                 process.kill()
                 yield "[TIME OUT] El proceso superó el límite de tiempo.\n"
                 return
+            if _LM_LOG.match(line):
+                continue
             yield line
 
         process.wait(timeout=5)
     except Exception as e:
         yield f"[ERROR] {e}\n"
 
-
-# ── Endpoints clásicos (JSON, sin streaming) ──────────────────────────────────
+# ── Endpoints de Gestión de Datos ────────────────────────────────────────────────
 
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
 
+@app.route("/api/check-volume", methods=["GET"])
+def check_volume():
+    keyword = request.args.get("keyword", "")
+    if not keyword:
+        return jsonify({"success": False, "error": "Se requiere el parámetro 'keyword'."}), 400
+    
+    try:
+        count = col_articulos.count_documents({"$text": {"$search": keyword}})
+        return jsonify({"success": True, "count": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route("/run/<spider>", methods=["POST"])
-def run(spider: str):
-    if spider not in SPIDERS:
-        return jsonify({"success": False, "error": f"Spider '{spider}' no existe."}), 400
-    result = run_spider(SPIDERS[spider])
-    status = 200 if result["success"] else 500
-    return jsonify(result), status
-
-
-@app.route("/run-all", methods=["POST"])
-def run_all():
-    salidas = []
-    ok_global = True
-    for nombre, script in SPIDERS.items():
-        r = run_spider(script)
-        estado = "OK" if r["success"] else "ERROR"
-        cuerpo = r["output"] if r["success"] else (r["error"] or r["output"])
-        salidas.append(f"{'='*60}\n  {nombre.upper()}  [{estado}]\n{'='*60}\n{cuerpo}")
-        if not r["success"]:
-            ok_global = False
-    return jsonify({"success": ok_global, "output": "\n\n".join(salidas)}), (200 if ok_global else 500)
-
+# ── Endpoints de Generación ───────────────────────────────────────────────────────
 
 @app.route("/ultimo-articulo", methods=["GET"])
 def ultimo_articulo():
-    from db import db
-    col = db["articulos_generados"]
-    doc = col.find_one({}, sort=[("generado_en", -1)])
+    col_generados = db["articulos_generados"]
+    doc = col_generados.find_one({}, sort=[("generado_en", -1)])
     if not doc:
         return jsonify({"success": False, "error": "Todavía no hay artículos generados."}), 404
     return jsonify({
@@ -117,79 +107,169 @@ def ultimo_articulo():
         }
     })
 
-
 @app.route("/generar", methods=["POST"])
 def generar():
-    result = run_spider("generar_articulo.py")
+    body = request.get_json(silent=True) or {}
+    args_list = []
+    tema = body.get("tema", "").strip()
+    persona = body.get("persona", "").strip()
+    if tema:
+        args_list.extend(["--tema", tema])
+    if persona and persona in ("analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"):
+        args_list.extend(["--persona", persona])
+    result = run_script("generar_articulo.py", args_list)
     status = 200 if result["success"] else 500
     return jsonify(result), status
-
 
 # ── Endpoints streaming (SSE) ─────────────────────────────────────────────────
 
-@app.route("/stream/run/<spider>", methods=["POST"])
-def stream_run(spider: str):
-    if spider not in SPIDERS:
-        return jsonify({"success": False, "error": f"Spider '{spider}' no existe."}), 400
-    return Response(
-        stream_with_context(_stream_output(SPIDERS[spider])),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-@app.route("/stream/run-all", methods=["POST"])
-def stream_run_all():
-    def generate():
-        for nombre, script in SPIDERS.items():
-            yield f"\n{{{{SEPARADOR}}}}{nombre.upper()}{{{{SEPARADOR}}}}\n"
-            yield from _stream_output(script)
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
 @app.route("/stream/generar", methods=["POST"])
 def stream_generar():
+    body = request.get_json(silent=True) or {}
+    args_list = []
+    tema = body.get("tema", "").strip()
+    persona = body.get("persona", "").strip()
+    if tema:
+        args_list.extend(["--tema", tema])
+    if persona and persona in ("analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"):
+        args_list.extend(["--persona", persona])
     return Response(
-        stream_with_context(_stream_output("generar_articulo.py")),
+        stream_with_context(_stream_output("generar_articulo.py", args_list)),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+# ── Endpoints para URLs Custom (Nuevas) ──────────────────────────────────────────
 
-# ── Endpoints para URLs custom ──────────────────────────────────────────────────
+@app.route("/api/scraping-config", methods=["GET"])
+def get_scraping_config():
+    next_run = scheduler.get_next_execution()
+    # Intentamos obtener el intervalo actual del job
+    job = scheduler.scheduler.get_job("trusted_scraping")
+    interval = job.trigger.interval.days if job else 1
+    
+    return jsonify({
+        "success": True,
+        "interval_days": interval,
+        "next_execution": next_run
+    })
 
-@app.route("/run-custom", methods=["POST"])
-def run_custom():
+@app.route("/api/scraping-config", methods=["POST"])
+def set_scraping_config():
     body = request.get_json(silent=True) or {}
-    urls = body.get("urls", [])
-    max_articulos = body.get("max", 5)
-    modo = body.get("modo", "list")
-    if not urls:
-        return jsonify({"success": False, "error": "Lista de URLs vacía."}), 400
-    payload = json.dumps({"urls": urls, "max": max_articulos, "modo": modo}, ensure_ascii=False)
-    result = run_spider("runcustom.py", [payload])
+    days = body.get("interval_days")
+    
+    if days is None or not isinstance(days, int) or days < 1:
+        return jsonify({"success": False, "error": "Se requiere 'interval_days' como un entero >= 1."}), 400
+    
+    scheduler.update_scheduler_interval(days)
+    return jsonify({"success": True, "message": f"Intervalo actualizado a {days} día(s)."})
+
+@app.route("/api/run-automation", methods=["POST"])
+def run_automation():
+    """Dispara la ejecución inmediata del scraping de URLs confiables."""
+    try:
+        threading.Thread(target=scheduler.run_trusted_scraping).start()
+        return jsonify({"success": True, "message": "Scraping automatizado iniciado manualmente."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/stream/run-automation", methods=["POST"])
+def stream_run_automation():
+    """Streaming SSE con el output en vivo del scraping de URLs confiables."""
+    return Response(
+        stream_with_context(_stream_output("run_automation.py")),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+@app.route("/api/trusted-urls-stats", methods=["GET"])
+def trusted_urls_stats():
+    """Estadísticas de las URLs confiables y última ejecución."""
+    try:
+        total = db["trusted_urls"].count_documents({})
+        activas = db["trusted_urls"].count_documents({"estado": "activo"})
+        ultima = db["trusted_urls"].find_one(
+            {"ultima_ejecucion": {"$exists": True}},
+            sort=[("ultima_ejecucion", -1)]
+        )
+        return jsonify({
+            "success": True,
+            "total": total,
+            "activas": activas,
+            "ultima_ejecucion": ultima.get("ultima_ejecucion") if ultima else None
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/evaluate-article", methods=["POST"])
+def evaluate_article():
+    body = request.get_json(silent=True) or {}
+    articulo = body.get("articulo", "")
+    if not articulo:
+        return jsonify({"success": False, "error": "Se requiere el contenido del artículo."}), 400
+    
+    # Si el articulo tiene wrapper JSON (ej: "articulo": "markdown..."), limpiarlo
+    import re as _re
+    m = _re.search(r'"articulo"\s*:\s*"(.+)"\s*}', articulo, _re.DOTALL)
+    if m:
+        articulo = m.group(1).replace('\\n', '\n').replace('\\"', '"').strip()
+    articulo = articulo.lstrip("`").lstrip("markdown").strip()
+    
+    from lm_studio import evaluar_lineamientos
+    resultado = evaluar_lineamientos(articulo)
+    
+    if "error" in resultado:
+        return jsonify({"success": False, "error": resultado["error"]}), 500
+    
+    return jsonify({"success": True, "evaluation": resultado})
+
+@app.route("/api/suggested-urls", methods=["GET"])
+def suggested_urls():
+    try:
+        docs = list(db["suggested_urls"].find().sort("fecha_sugerida", -1).limit(20))
+        for d in docs:
+            d["_id"] = str(d["_id"])
+        return jsonify({"success": True, "urls": docs})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/discover-sources", methods=["POST"])
+def discover_sources():
+    result = run_script("discover_sources.py")
     status = 200 if result["success"] else 500
     return jsonify(result), status
 
-
-@app.route("/stream/run-custom", methods=["POST"])
-def stream_run_custom():
+@app.route("/api/add-url", methods=["POST"])
+def add_url():
     body = request.get_json(silent=True) or {}
-    urls = body.get("urls", [])
-    max_articulos = body.get("max", 5)
-    modo = body.get("modo", "list")
-    if not urls:
-        return jsonify({"success": False, "error": "Lista de URLs vacía."}), 400
-    payload = json.dumps({"urls": urls, "max": max_articulos, "modo": modo}, ensure_ascii=False)
+    url = body.get("url", "")
+    if not url:
+        return jsonify({"success": False, "error": "Se requiere la URL."}), 400
+    
+    # Ejecutamos el nuevo script add_url.py
+    result = run_script("add_url.py", [url])
+    status = 200 if result["success"] else 500
+    return jsonify(result), status
+
+@app.route("/stream/add-url", methods=["POST"])
+def stream_add_url():
+    body = request.get_json(silent=True) or {}
+    url = body.get("url", "")
+    if not url:
+        return jsonify({"success": False, "error": "Se requiere la URL."}), 400
+    
     return Response(
-        stream_with_context(_stream_output("runcustom.py", [payload])),
+        stream_with_context(_stream_output("add_url.py", [url])),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+if __name__ == "__main__":
+    # Iniciar el scheduler de scraping automático
+    scheduler.start_scheduler()
+    
+    app.run(host="0.0.0.0", port=5000, threaded=True)
 
 
 if __name__ == "__main__":

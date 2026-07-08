@@ -20,7 +20,7 @@ import datetime
 import re
 import sys
 
-from db import db, crear_indices_texto
+from db import db, col_afterdrive, crear_indices_texto
 from lm_studio import generar_articulo as lm_generar, calcular_embedding, research_contexto
 from embeddings import coseno, texto_para_embedding
 
@@ -35,30 +35,25 @@ _PAYWALL_PATTERNS = [
     r"Suscribite para continuar",
 ]
 
-FUENTES = {
-    "lanacion":    db["autopartes"],
-    "aftermarket": db["aftermarket"],
-    "ambito":      db["ambito"],
-    "cenital":     db["cenital"],
-    "perfil":      db["perfil"],
-    "custom":      db["custom"],
-    "afterdrive":  db["afterdrive"],
-}
+col_generados = db["articulos_generados"]
 
-col_articulos = db["articulos_generados"]
+FUENTES = {
+    "general":    col_generados,
+    "afterdrive": col_afterdrive,
+}
 
 TOKENS_POR_CARACTER = 0.28
 _OVERHEAD_FIJO = 600
-_MARGEN_RESPUESTA = 4096
+_MARGEN_RESPUESTA = 6000
 _CONTEXTO_MAXIMO = 32768
 
 # Parámetros de selección por embeddings (calibrados con la data real).
 UMBRAL_TOPICO = 0.70   # similitud mínima para considerar a un doc "vecino" de la semilla
 MIN_VECINOS   = 2      # una semilla necesita al menos esta cantidad de vecinos
-K_VECINOS     = 8      # cuántos vecinos como máximo entran al tópico
+K_VECINOS     = 15     # cuántos vecinos como máximo entran al tópico
 UMBRAL_DEDUP  = 0.95   # si el artículo generado supera esto vs uno previo, se descarta
 MAX_INTENTOS  = 3      # cuántas semillas probar antes de rendirse
-LIMITE_TEXT   = 10     # docs por fuente en la búsqueda $text
+LIMITE_TEXT   = 20     # docs por fuente en la búsqueda $text
 
 
 def _estimar_tokens(texto: str) -> int:
@@ -85,6 +80,8 @@ def _cargar_candidatos(fuentes: list[str]) -> list[dict]:
     """Todos los artículos con embedding de las fuentes elegidas."""
     candidatos = []
     for nombre in fuentes:
+        if nombre not in FUENTES:
+            continue
         for d in FUENTES[nombre].find({"embedding": {"$exists": True}}):
             d["_fuente"] = nombre
             candidatos.append(d)
@@ -97,12 +94,12 @@ def _cargar_generados_emb() -> list[list[float]]:
     Calcula y persiste el embedding de los que aún no lo tengan.
     """
     vecs = []
-    for g in col_articulos.find():
+    for g in col_generados.find():
         vec = g.get("embedding")
         if not vec:
             vec = calcular_embedding(g.get("contenido", ""))
             if vec:
-                col_articulos.update_one({"_id": g["_id"]}, {"$set": {"embedding": vec}})
+                col_generados.update_one({"_id": g["_id"]}, {"$set": {"embedding": vec}})
         if vec:
             vecs.append(vec)
     return vecs
@@ -155,7 +152,7 @@ def _buscar_por_tema(tema: str, limite: int = LIMITE_TEXT) -> list[tuple[dict, f
 
 
 def guardar_articulo(contenido, ids_usados, fuentes, tema, embedding) -> None:
-    col_articulos.insert_one({
+    col_generados.insert_one({
         "contenido":   contenido,
         "fuentes":     fuentes,
         "tema":        tema,
@@ -176,6 +173,11 @@ def main():
                         default=list(FUENTES.keys()), metavar="FUENTE",
                         help="Fuentes a usar. Por defecto: todas.")
     parser.add_argument("--budget-contexto", type=int, default=0, help="0 = auto (32768 - márgenes)")
+    parser.add_argument("--tema", type=str, default=None,
+                        help="Tema específico para el artículo. Si se omite, se elige por embeddings.")
+    parser.add_argument("--persona", type=str, default="analitico",
+                        choices=["analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"],
+                        help="Personalidad de redacción. Por defecto: analitico.")
     args = parser.parse_args()
 
     # Aprovecha el contexto de 32K (mejora de Manuel): más vecinos por tópico.
@@ -194,93 +196,130 @@ def main():
     generados = _cargar_generados_emb()
     print(f"Artículos ya generados (memoria anti-repetición): {len(generados)}")
 
-    # ── 3. Ordenar semillas por frescura (y recencia como desempate) ─────
-    candidatos.sort(
-        key=lambda d: (_novedad(d["embedding"], generados), d["_id"].generation_time.timestamp()),
-        reverse=True,
-    )
+    # ── Cuando se pasa --tema, buscar semanticamente por embeddings ────
+    modo_tema = bool(args.tema)
+    if modo_tema:
+        print(f"Modo tema específico: '{args.tema}'")
+        query_expandido = f"{args.tema} autopartes aftermarket repuestos"
+        emb_tema = calcular_embedding(query_expandido) if candidatos else None
+        if emb_tema:
+            scored = [(d, d["_fuente"], coseno(emb_tema, d["embedding"]))
+                       for d in candidatos if d.get("embedding")]
+            scored.sort(key=lambda x: x[1], reverse=True)
+            scored = [x for x in scored if x[2] >= 0.50]
+            if not scored:
+                print(f"  Ningún artículo con afinidad semántica a '{args.tema}' (umbral 0.50).")
+                return
+            paquete = scored[:25]
+            tema = args.tema
+            print(f"  {len(paquete)} artículos por similitud semántica (mejor: {scored[0][2]:.3f})")
+        else:
+            # fallback a $text si falla el embedding
+            texto_docs = _buscar_por_tema(args.tema, limite=30)
+            if not texto_docs:
+                print(f"No se encontraron artículos sobre '{args.tema}'.")
+                return
+            paquete = [(d, d["_fuente"], s) for d, s in texto_docs[:25]]
+            tema = args.tema
+            print(f"  {len(paquete)} artículos encontrados por texto para '{args.tema}'")
+    else:
+        # ── 3. Ordenar semillas por frescura (y recencia como desempate) ─────
+        candidatos.sort(
+            key=lambda d: (_novedad(d["embedding"], generados), d["_id"].generation_time.timestamp()),
+            reverse=True,
+        )
+        # ── 4-7. Probar semillas hasta lograr un artículo no repetido ────────
+        for intento, semilla in enumerate(candidatos[:MAX_INTENTOS], 1):
+            tema = semilla.get("titulo", "(sin título)")
+            print(f"\n── Intento {intento}: semilla → {tema[:70]}")
+            vecinos = _vecinos(semilla, candidatos)
+            if len(vecinos) < MIN_VECINOS:
+                print(f"   semilla con pocos vecinos ({len(vecinos)}), probando otra...")
+                continue
+            # ── Hybrid: merge KNN + $text search ───────────────────────────
+            texto_docs = _buscar_por_tema(tema)
+            merged = {}
+            for d, s in vecinos:
+                merged[d["_id"]] = {"doc": d, "fuente": d["_fuente"], "knn": s, "text": 0.0}
+            for d, s in texto_docs:
+                if d["_id"] in merged:
+                    merged[d["_id"]]["text"] = s
+                else:
+                    merged[d["_id"]] = {"doc": d, "fuente": d["_fuente"], "knn": 0.0, "text": s}
+            hermanos = sorted(merged.values(), key=lambda x: max(x["knn"], x["text"]), reverse=True)
+            print(f"   vecinos KNN: {len(vecinos)}, $text: {len(texto_docs)}, pool único: {len(hermanos)}")
+            paquete = [(semilla, semilla["_fuente"], 1.0)]
+            for item in hermanos:
+                if item["doc"]["_id"] == semilla["_id"]:
+                    continue
+                paquete.append((item["doc"], item["fuente"], max(item["knn"], item["text"])))
+            break
+        else:
+            print(f"\nNo se logró un artículo nuevo tras {MAX_INTENTOS} intentos (todo muy parecido a lo ya escrito).")
+            return
 
-    # ── 4-7. Probar semillas hasta lograr un artículo no repetido ────────
-    for intento, semilla in enumerate(candidatos[:MAX_INTENTOS], 1):
-        tema = semilla.get("titulo", "(sin título)")
-        print(f"\n── Intento {intento}: semilla → {tema[:70]}")
-
-        vecinos = _vecinos(semilla, candidatos)
-        if len(vecinos) < MIN_VECINOS:
-            print(f"   semilla con pocos vecinos ({len(vecinos)}), probando otra...")
+    # ── Armar contexto y generar ─────────────────────────────────────────
+    contexto = ""
+    seleccionados = []
+    tokens = _OVERHEAD_FIJO
+    for idx, (doc, fuente, sim) in enumerate(paquete, 1):
+        texto_doc, t = _formatear_doc(doc, fuente, idx)
+        if tokens + t > budget:
             continue
+        tokens += t
+        contexto += f"\n── Fuente: {fuente} (afinidad: {sim:.2f}) ──\n" + texto_doc
+        seleccionados.append((doc, fuente))
 
-        # ── Hybrid: merge KNN + $text search ───────────────────────────
-        texto_docs = _buscar_por_tema(tema)
-        merged = {}
-        for d, s in vecinos:
-            merged[d["_id"]] = {"doc": d, "fuente": d["_fuente"], "knn": s, "text": 0.0}
-        for d, s in texto_docs:
-            if d["_id"] in merged:
-                merged[d["_id"]]["text"] = s
-            else:
-                merged[d["_id"]] = {"doc": d, "fuente": d["_fuente"], "knn": 0.0, "text": s}
+    print(f"   tópico armado: {len(seleccionados)} artículos (~{tokens} tokens)")
 
-        hermanos = sorted(merged.values(), key=lambda x: max(x["knn"], x["text"]), reverse=True)
-        print(f"   vecinos KNN: {len(vecinos)}, $text: {len(texto_docs)}, pool único: {len(hermanos)}")
-
-        paquete = [(semilla, semilla["_fuente"], 1.0)]
-        for item in hermanos:
-            if item["doc"]["_id"] == semilla["_id"]:
+    # ── Contexto suplementario: artículos recientes como recurso opcional ──
+    if tokens < budget * 0.7:
+        docs_usados_ids = {d["_id"] for d, _ in seleccionados}
+        recientes = []
+        for d in col_afterdrive.find().sort("_id", -1).limit(10):
+            if d["_id"] in docs_usados_ids:
                 continue
-            paquete.append((item["doc"], item["fuente"], max(item["knn"], item["text"])))
-
-        contexto = ""
-        seleccionados = []
-        tokens = _OVERHEAD_FIJO
-        for idx, (doc, fuente, sim) in enumerate(paquete, 1):
-            texto_doc, t = _formatear_doc(doc, fuente, idx)
-            if tokens + t > budget:
+            cuerpo = _limpiar_paywall(d.get("cuerpo", "")[:1200])
+            if not cuerpo.strip():
                 continue
-            tokens += t
-            contexto += f"\n── Fuente: {fuente} (afinidad: {sim:.2f}) ──\n" + texto_doc
-            seleccionados.append((doc, fuente))
+            t_extra = _estimar_tokens(cuerpo) + 50
+            if tokens + t_extra > budget:
+                break
+            tokens += t_extra
+            recientes.append(f"- {d.get('titulo', '(sin titulo)')}: {cuerpo}")
+        if recientes:
+            contexto += "\n\n<RECURSOS ADICIONALES>\n" + "\n".join(recientes[:5]) + "\n</RECURSOS ADICIONALES>"
+            print(f"   + {len(recientes[:5])} artículos recientes como recurso adicional (~{tokens} tokens total)")
 
-        # Truncar contexto para research pass (ventana de contexto del modelo ~8-16K tokens)
-        RESEARCH_MAX_TOKENS = 4000
-        RESEARCH_MAX_CHARS = RESEARCH_MAX_TOKENS * 4  # ~4 chars/token
-        research_ctx = contexto[:RESEARCH_MAX_CHARS] if len(contexto) > RESEARCH_MAX_CHARS else contexto
+    print("   generando artículo...")
+    print("=" * 60)
+    try:
+        articulo = lm_generar(contexto, persona=args.persona, tema=args.tema)
+    except Exception as e:
+        print(f"\nError al generar: {e}")
+        return
+    print("=" * 60)
 
-        print(f"   tópico armado: {len(seleccionados)} artículos (~{tokens} tokens)")
-        print(f"   research pass: extrayendo datos del contexto... ({len(research_ctx)} chars)")
-        research = research_contexto(research_ctx)
-        print(f"   research brief: {len(research)} chars")
-        print("=" * 60)
-        try:
-            articulo = lm_generar(contexto, research)
-        except Exception as e:
-            print(f"\nError al generar: {e}")
-            sys.exit(1)
-        print("=" * 60)
-
-        if not articulo:
-            print("   artículo vacío, probando otra semilla...")
-            continue
-
-        # ── 6. Dedup de salida ───────────────────────────────────────────
-        emb_art = calcular_embedding(articulo)
-        if emb_art and generados:
-            parecido = max(coseno(emb_art, g) for g in generados)
-            if parecido >= UMBRAL_DEDUP:
-                print(f"   ✗ demasiado parecido a uno previo (sim {parecido:.2f}), descartado. Otra semilla...")
-                continue
-
-        # ── 7. Guardar ───────────────────────────────────────────────────
-        ids = [d["_id"] for d, _ in seleccionados]
-        fuentes_usadas = list({f for _, f in seleccionados})
-        guardar_articulo(articulo, ids, fuentes_usadas, tema, emb_art)
-        for nombre in fuentes_usadas:
-            marcar_usados(FUENTES[nombre], [d["_id"] for d, f in seleccionados if f == nombre])
-
-        print(f"\n✓ Artículo guardado (tema: {tema[:50]}) usando {len(seleccionados)} fuentes.")
+    if not articulo:
+        print("   artículo vacío.")
         return
 
-    print(f"\nNo se logró un artículo nuevo tras {MAX_INTENTOS} intentos (todo muy parecido a lo ya escrito).")
+    # ── 6. Dedup de salida ───────────────────────────────────────────────
+    emb_art = calcular_embedding(articulo)
+    if emb_art and generados:
+        parecido = max(coseno(emb_art, g) for g in generados)
+        if parecido >= UMBRAL_DEDUP:
+            print(f"   ✗ demasiado parecido a uno previo (sim {parecido:.2f}), descartado.")
+            return
+
+    # ── 7. Guardar ───────────────────────────────────────────────────────
+    ids = [d["_id"] for d, _ in seleccionados]
+    fuentes_usadas = list({f for _, f in seleccionados})
+    guardar_articulo(articulo, ids, fuentes_usadas, tema, emb_art)
+    for nombre in fuentes_usadas:
+        marcar_usados(FUENTES[nombre], [d["_id"] for d, f in seleccionados if f == nombre])
+
+    print(f"\n[OK] Artículo guardado (tema: {tema[:50]}) usando {len(seleccionados)} fuentes.")
 
 
 if __name__ == "__main__":

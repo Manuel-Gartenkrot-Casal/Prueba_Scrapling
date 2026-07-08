@@ -22,14 +22,10 @@ COPY lm_studio.py .
 COPY embeddings.py .
 COPY flask_api.py .
 COPY generar_articulo.py .
-COPY runlanacion.py .
-COPY runaftermarket.py .
-COPY runambito.py .
-COPY runcenital.py .
-COPY runperfil.py .
-COPY runcustom.py .
-COPY runafterdrive.py .
-COPY spiders/ ./spiders/
+COPY scraper.py .
+COPY scheduler.py .
+COPY add_url.py .
+COPY discover_sources.py .
 COPY .env .
 
 EXPOSE 5000

@@ -169,10 +169,10 @@ def _procesar_individual(url: str, items: list):
         return
     art = _extraer_articulo(html, url)
     if art:
-        print(f"  \u2713 Artículo: {art['titulo'][:90]}")
+        print(f"  [OK] Artículo: {art['titulo'][:90]}")
         items.append(art)
     else:
-        print("  \u2717 No se pudo extraer contenido del artículo")
+        print("  [FAIL] No se pudo extraer contenido del artículo")
 
 
 def _procesar_listado(url: str, max_articulos: int, items: list):
@@ -190,7 +190,7 @@ def _procesar_listado(url: str, max_articulos: int, items: list):
     if not enlaces:
         print("  [ERROR] No se encontraron enlaces a artículos")
         return
-    print(f"  \u2192 {len(enlaces)} enlaces encontrados, buscando {max_articulos} artículos...")
+    print(f"  -> {len(enlaces)} enlaces encontrados, buscando {max_articulos} artículos...")
     for i, link in enumerate(enlaces):
         if len(items) >= max_articulos:
             break
@@ -204,10 +204,10 @@ def _procesar_listado(url: str, max_articulos: int, items: list):
             continue
         art = _extraer_articulo(html_link, link)
         if art:
-            print(f"    \u2713 {art['titulo'][:90]}")
+            print(f"    [OK] {art['titulo'][:90]}")
             items.append(art)
         else:
-            print("    \u2717 No se pudo extraer contenido")
+            print("    [FAIL] No se pudo extraer contenido")
 
 
 def start(urls: list[str], max_articulos: int = 5, modo: str = "list") -> _Result:
