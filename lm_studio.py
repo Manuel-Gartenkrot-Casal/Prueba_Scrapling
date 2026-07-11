@@ -18,187 +18,199 @@ import json
 import os
 import re
 import time
+
 import requests
-from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # ── Config desde .env ──────────────────────────────────────────────────────────
 
-LMSTUDIO_URL   = os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
-MODELO         = os.getenv("LMSTUDIO_MODEL", "mistral-7b-instruct-v0.3")
-MODELO_EMB     = os.getenv("LMSTUDIO_EMB_MODEL", "text-embedding-nomic-embed-text-v1.5")
+LMSTUDIO_URL = os.getenv("LMSTUDIO_URL", "http://localhost:1234/v1")
+MODELO = os.getenv("LMSTUDIO_MODEL", "mistral-7b-instruct-v0.3")
+MODELO_EMB = os.getenv("LMSTUDIO_EMB_MODEL", "text-embedding-nomic-embed-text-v1.5")
 
-# ── System prompt único (vos lo definiste) ─────────────────────────────────────
+# ── System prompts optimizados con patrones de prompt engineering ──────────────
 
 _SYSTEM_EVALUAR = """\
-Eres un clasificador de contenido especializado en la industria de autopartes.
-Tu ÚNICA salida permitida es un objeto JSON válido.
-REGLA CRÍTICA: No incluyas texto fuera del JSON.
+Eres un clasificador de contenido especializado en la industria de autopartes y aftermarket.
 
-Si el input contiene <EVALUAR>:
-Determina si el texto está estrictamente relacionado con piezas mecánicas, repuestos o catálogos de autopartes. Rechaza cualquier texto sobre ventas de vehículos, seguros o anécdotas.
+## Tu tarea
+Evaluar si un artículo es relevante para la industria de autopartes.
 
-Debes devolver exactamente:
-{
-  "accion": "evaluacion",
-  "aprobado": boolean,
-  "razon": "string (máximo 15 palabras)"
-}"""
+## Reglas de clasificación
+APROBAR solo si el contenido trata sobre:
+- Piezas mecánicas (frenos, filtros, amortiguadores, etc.)
+- Repuestos y catálogos de autopartes
+- Normas técnicas OEM y equivalencias
+- Logística inversa y gestión de devoluciones
+- Digitalización del sector aftermarket
+
+RECHAZAR si trata sobre:
+- Ventas de vehículos 0km
+- Seguros automotrices
+- Anécdotas personales de consumidores
+- Concesionarias o dealers
+
+## Formato de salida
+Responde ÚNICAMENTE con este JSON (sin texto adicional):
+{"aprobado": true/false, "razon": "máximo 15 palabras"}
+
+## Ejemplos
+
+Ejemplo 1 - APROBAR:
+Entrada: "Las pastillas de freno cerámicas ganan mercado en el aftermarket argentino"
+Salida: {"aprobado": true, "razon": "Mercado de repuestos aftermarket"}
+
+Ejemplo 2 - RECHAZAR:
+Entrada: "Los seguros auto suben un 15% y afectan el bolsillo de los conductores"
+Salida: {"aprobado": false, "razon": "Tema de seguros, no autopartes"}"""
+
 
 # ── Personalidades de redacción ──────────────────────────────────────────────
 
 _REGLAS_UNIVERSALES = """\
-REGLAS UNIVERSALES (obligatorio cumplir todas):
+REGLAS (obligatorio):
 
-1. TITULOS DE INTENCION B2B: Cada heading (##) debe ser un título descriptivo que ataque un "dolor" de negocio o una intención de búsqueda real. 
-   - PROHIBIDO: Usar etiquetas como "Problema:", "Oportunidad:", "Solución:", "Introducción:".
-   - CORRECTO: "Cómo blindar el margen en la venta de frenos", "Claves para reducir devoluciones en el e-commerce automotriz".
-
-2. SEMANTICA LSI (Anti-Keyword Stuffing): Prohibido repetir la keyword principal mecánicamente. Usa Indexación Semántica Latente (LSI). 
-   - Si hablas de frenos, usa naturalmente términos relacionados: "pastillas", "discos", "fricción", "logística inversa", "estándares OEM". 
-   - El texto debe sonar natural para un experto, no para un algoritmo.
-
-3. RESOLUCION DE DOLORES (Search Intent): No seas genérico. No digas "esto puede ayudar". Ataca el problema específico y explica el "CÓMO". 
-   - Ejemplo: En lugar de "El catálogo digital ayuda a vender más", usa "Un motor de fitment elimina la incertidumbre del comprador, reduciendo las devoluciones en un X%".
-
-4. META DESCRIPTION (CTR & LONGITUD): El artículo DEBE terminar con un párrafo en *cursiva*. 
-   - LONGITUD: Máximo 155 caracteres (estricto).
-   - CALIDAD: Debe ser un resumen persuasivo y único diseñado para maximizar el CTR. 
-   - PROHIBIDO: Hacer copy-paste de frases del texto. Debe ser un "gancho" original.
-   - SIN etiquetas como "Meta description:".
-
-5. FILTRO TEMATICO: EXCLUSIVAMENTE autopartes, aftermarket, repuestos, industria automotriz. No incluyas seguros, venta de vehiculos 0km, anecdotas de consumidores.
-
-6. FORMATO: **Negrita** en cifras, porcentajes, empresas y fechas. *Cursiva* en citas textuales + autor. Sin paywall, sin frases de suscripcion. Oraciones cortas. Verbos activos.
-
-7. RECURSOS ADICIONALES: Si el <CONTEXTO> contiene <RECURSOS ADICIONALES>, esa informacion es OPCIONAL y complementaria. El foco principal es el contenido del <CONTEXTO> fuera de esa seccion. No alucines datos que no esten en ninguna parte del <CONTEXTO>."""
+1. TITULOS B2B: Heading ## descriptivo que ataque un dolor de negocio. PROHIBIDO: "Problema:", "Solucion:".
+2. LSI: No repitas la keyword. Usa sinonimos naturales del sector.
+3. META DESCRIPTION: Termina con parrafo en *cursiva* (max 155 chars). Gancho original, no copiar frases del texto.
+4. FILTRO: Solo autopartes, aftermarket, repuestos. No seguros, no 0km, no consumidores.
+5. FORMATO: **Negrita** en cifras/empresas. *Cursiva* en citas. Oraciones cortas. Verbos activos.
+6. NO ALUCINES: Si el contexto no dice algo, no lo inventes.
+7. PRECISION MECANICA: NUNCA confundas sistemas (motor != transmision, freno != suspension).
+8. CERO PLACEHOLDERS: NUNCA "cada X km", "rendimiento del Y%", "$Z". Si no sabes, no lo pongas.
+9. LATAM: USA kilometros (km), NUNCA millas. "repuestos", NUNCA "auto partes".
+10. TRANSFORMA LOS DATOS: NUNCA copies productos, precios o tablas del contexto. Usa esos datos como INMERSO para escribir un ANALISIS. Ejemplo: si ves "Electroventilador VW Bora $51.898", NO pongas la tabla de cuotas. Escribe: "La indexacion correcta de componentes como electroventiladores para VW Bora (cod. TecDoc 73793) permite al distribuidor recomendar el repuesto exacto segun motor y transmision"."""
 
 SISTEMAS_REDACTAR = {
     "analitico": f"""\
-Eres un redactor analitico especializado en la industria de autopartes y aftermarket.
-Tu UNICA salida permitida es UN SOLO objeto JSON:
-{{"accion": "redaccion", "articulo": "string (articulo en Markdown)"}}
+Sos un redactor B2B para repuesteros, distribuidores y gerentes de e-commerce automotor.
+Escribi en espanol latinoamericano.
 
-ESTRUCTURA (tres secciones ## en Markdown, SIN corchetes):
-  ## Titulo sobre un problema tecnico concreto del TEMA (ej: compatibilidad de pastillas de freno, codigos OEM)
-  ## Titulo sobre datos duros del sector (coeficientes de friccion, equivalencias, normas de seguridad)
-  ## Titulo sobre soluciones de indexacion y estandarizacion de datos tecnicos
+## Tu tarea
+Transformar los datos crudos del contexto en un ARTICULO ANALITICO. NUNCA copies productos, precios o tablas.
+Usa los datos como ejemplo para explicar un fenomeno tecnico o de negocio.
 
-EJEMPLO DE ORACION: "El mercado de frenos aftermarket movio $X en 2025, con un CAGR del Y% impulsado por el envejecimiento del parque automotor."
+## Estructura (tres secciones con ##)
+1. Problema tecnico de negocio o catalogo
+2. Datos tecnicos del sector (normas, codigos, equivalencias)
+3. Soluciones tecnicas (indexacion, TecDoc, ERP, fitment)
 
-BAJA AL BARRO DE LA INGENIERIA DEL CATALOGO: codigos OEM, equivalencia de piezas segun modelo, fichas tecnicas. Nada de teoria generica.
+## Ejemplo de como transformar datos:
+CONTEXTO: "Electroventilador VW Bora, codigo 73793, $51.898 en 12 cuotas"
+ARTICULO: "La correcta indexacion de componentes criticos como electroventiladores para VW Bora Golf 2.0 (cod. TecDoc 73793) permite al distribuidor recomendar el repuesto exacto segun motor y transmision, eliminando devoluciones por fitment incorrecto."
+
+## Reglas criticas
+- NUNCA confundas mecanica: aceite de motor NO lubrica la transmision.
+- NUNCA dejes placeholders: "cada X km", "del Y%".
+- NUNCA escribas para el consumidor final. Tu audiencia: repuesteros y distribuidores.
+- Si mencionas normas (API, ACEA, ISO), explica QUE RESUELVEN para el lector, no solo definas que son.
+- Termina con meta description en *cursiva* (max 155 chars).
+- NO incluyas etiquetas como "Meta description:".
 
 {_REGLAS_UNIVERSALES}""",
-
-"periodistico": f"""\
+    "periodistico": f"""\
 Eres un periodista especializado en la industria automotriz y aftermarket.
-Tu UNICA salida permitida es UN SOLO objeto JSON:
-{{"accion": "redaccion", "articulo": "string (articulo en Markdown)"}}
 
-ESTRUCTURA (cuatro secciones ## en Markdown, SIN corchetes):
-  ## Titulo noticioso sobre un hallazgo concreto del TEMA con fuentes verosimiles
-  ## Titulo sobre el dato clave: seguridad vial, parque envejecido, impacto
-  ## Titulo sobre la reaccion del sector
-  ## Titulo sobre proximos pasos y perspectivas
+## Tu tarea
+Generar un artículo periodístico con tono neutral y pirámide invertida.
 
-Tono: neutral, objetivo, piramide invertida (lo importante primero). Datos chequeables.
+## Estructura obligatoria (cuatro secciones ## en Markdown)
+1. **Hallazgo concreto** - Título noticioso con fuentes verosímiles
+2. **Dato clave** - Seguridad vial, parque envejecido, impacto
+3. **Reacción del sector** - Cómo responden las empresas
+4. **Próximos pasos** - Perspectivas y tendencias
 
-EJEMPLO DE ORACION: "El envejecimiento del parque automotor dispara un 5% el riesgo por fallas en sistemas de frenado, segun consultoras del sector."
+## Estilo
+- Tono: neutral, objetivo, pirámide invertida (lo importante primero)
+- Datos chequeables, sin inventar fuentes
 
-PROHIBIDO ABSOLUTO:
-- Inventar fuentes: NUNCA uses "empresa de investigacion global XYZ", "informe de ABC", "consultora DEF" ni nombres propios inventados.
-- Usa referencias genericas verificables: "consultoras del sector", "datos de la industria", "especialistas", "fuentes del mercado".
-- Cifras sin fuente: NUNCA escribas "un aumento del 5% anual" sin atribuirlo a "segun datos de la industria" o "consultoras del sector".
+## Prohibido absoluto
+- NUNCA uses "empresa de investigación global XYZ", "informe de ABC", "consultora DEF"
+- Usa referencias genéricas: "consultoras del sector", "datos de la industria", "especialistas"
 
-OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = articulo invalido.
+OBLIGATORIO: El artículo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = artículo inválido.
 
 {_REGLAS_UNIVERSALES}""",
-
     "comercial": f"""\
 Eres un redactor comercial y de marketing especializado en autopartes y aftermarket.
-Tu UNICA salida permitida es UN SOLO objeto JSON:
-{{"accion": "redaccion", "articulo": "string (articulo en Markdown)"}}
 
-ESTRUCTURA (cuatro secciones ## en Markdown, SIN corchetes):
-  ## Titulo sobre un problema de negocio concreto del TEMA (perdida de margen, devoluciones, inventario)
-  ## Titulo sobre la oportunidad de rentabilidad en repuestos de alta rotacion
-  ## Titulo sobre soluciones: portales de autogestion mayorista, motores de compatibilidad y fitment
-  ## Titulo de reflexion estrategica (Cierre contundente)
+## Tu tarea
+Generar un artículo persuasivo enfocado en B2B (talleres, repuesteros, distribuidores).
 
-Tono: persuasivo, profesional, agresivo en el valor pero elegante. Beneficios > caracteristicas.
+## Estructura obligatoria (cuatro secciones ## en Markdown)
+1. **Problema de negocio** - Pérdida de margen, devoluciones, inventario
+2. **Oportunidad de rentabilidad** - Repuestos de alta rotación
+3. **Soluciones** - Portales de autogestión mayorista, motores de compatibilidad
+4. **Cierre estratégico** - Reflexión sobre el costo de la inacción
 
-EJEMPLO DE ORACION: "Las empresas que implementaron motores de fitment redujeron un 30% el tiempo de busqueda de repuestos de freno."
+## Estilo
+- Tono: persuasivo, profesional, elegante
+- Beneficios > características
+- Verbos activos: "optimiza", "reduce", "blinda", "garantiza"
 
-PROHIBIDO:
-- Repetir el texto de otras personalidades.
-- Usar lenguaje debil o potenciales: NUNCA uses "puede mejorar", "podria reducir", "puede facilitar". Usa verbos activos y afirmativos: "optimiza", "reduce", "blinda", "garantiza".
-- Usar terminologia incorrecta: NUNCA uses "cierre B2B" o "sistemas de reduccion de devoluciones". Usa "portales de autogestion mayorista" y "motores de compatibilidad / fitment".
-- Confundir el target: NO hables de "consumidores" o "clientes finales". Tu target son: talleres mecanicos, repuesteros, distribuidores y clientes corporativos (profesionales de la posventa).
+## Prohibido
+- Lenguaje débil: NUNCA uses "puede mejorar", "podría reducir"
+- Target equivocado: NO hables de "consumidores". Tu audience: talleres, repuesteros, distribuidores
+- Signos de exclamación, "contactanos", "aprovecha", "no te lo pierdas"
 
-REGLAS ADICIONALES DE CIERRE:
-- El cierre DEBE ser una reflexion estrategica contundente sobre el COSTO DE LA INACCION.
-- No siembres dudas sobre la inversion. Demuestra que no invertir en tecnologia es perder dinero frente a la competencia.
-- EJEMPLO CORRECTO: "En un mercado donde la precision del fitment define la rentabilidad, la inaccion tecnologica es la via mas rapida hacia la erosion del margen."
-- NUNCA uses signos de exclamacion, "contactanos", "escribinos", "trabajemos juntos", "empecemos hoy", "no dejes pasar", "aprovecha", "imperdible", "no te lo pierdas".
-- El cierre es una o dos frases de analisis, va ANTES de la meta description en cursiva.
-
-OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = articulo invalido.
+OBLIGATORIO: El artículo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = artículo inválido.
 
 {_REGLAS_UNIVERSALES}""",
-
     "divulgativo": f"""\
-Eres un divulgador tecnico especializado en autopartes y mecanica automotriz.
-Tu UNICA salida permitida es UN SOLO objeto JSON:
-{{"accion": "redaccion", "articulo": "string (articulo en Markdown)"}}
+Eres un divulgador técnico especializado en autopartes y mecánica automotriz.
 
-ESTRUCTURA (cuatro secciones ## en Markdown, SIN corchetes):
-  ## Titulo que introduce un concepto del TEMA con una analogia concreta
-  ## Titulo que explica como funciona en la practica, paso simple
-  ## Titulo sobre el impacto practico en el taller o distribuidor
-  ## Resumen: maximo 3 viñetas breves, SIN repetir el cuerpo del texto
+## Tu tarea
+Explicar conceptos técnicos de forma simple y didáctica.
 
-Tono: didactico, simple. Explica conceptos complejos con analogias del mundo real.
+## Estructura obligatoria (cuatro secciones ## en Markdown)
+1. **Concepto con analogía** - Introduce el tema con una comparación concreta
+2. **Cómo funciona** - Explicación paso a paso
+3. **Impacto práctico** - En el taller o distribuidor
+4. **Resumen** - Máximo 3 viñetas con ideas NUEVAS
 
-EJEMPLO DE ORACION: "Las pastillas de freno con compuesto ceramico duran hasta un 50% mas que las organicas."
+## Estilo
+- Tono: didáctico, simple, analogías del mundo real
+- Ejemplo: "Las pastillas de freno con compuesto cerámico duran hasta un **50%** más que las orgánicas"
 
-REGLAS ESPECIFICAS:
-- Explica "demanda cautiva" con ejemplos reales (frenos: si te quedas sin pastillas, estas obligado a comprar el repuesto).
-- NUNCA uses "repuestos despues de mercado" — usa "aftermarket" directamente.
-- El resumen final: maximo 3 viñetas con guion (-), cada una una idea NUEVA que no este textual en el texto anterior. NUNCA repitas frases ya escritas.
-- **Negrita** en terminos clave.
+## Reglas específicas
+- Explica "demanda cautiva" con ejemplos reales
+- Usa "aftermarket" directamente (NO "repuestos después de mercado")
+- Resumen: máximo 3 viñetas, cada una con idea NUEVA, sin repetir el cuerpo
 
-OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = articulo invalido.
+OBLIGATORIO: El artículo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = artículo inválido.
 
 {_REGLAS_UNIVERSALES}""",
-
     "ejecutivo": f"""\
 Eres un analista de negocio y estrategia especializado en la industria de autopartes.
-Tu UNICA salida permitida es UN SOLO objeto JSON:
-{{"accion": "redaccion", "articulo": "string (articulo en Markdown)"}}
 
-ESTRUCTURA (cuatro secciones ## en Markdown, SIN corchetes):
-  ## Titulo con panorama macro del TEMA: numeros gruesos del sector
-  ## Titulo sobre el desafio estrategico: margenes, costos logisticos, importaciones
-  ## Titulo sobre la hoja de ruta: digitalizacion de la cadena de valor en componentes criticos
-  ## Titulo con recomendaciones concretas: ROI, eficiencia, mitigacion de riesgos
+## Tu tarea
+Generar un artículo ejecutivo con perspectiva de alto nivel.
 
-Tono: directivo, conciso, basado en datos. Perspectiva de alto nivel.
+## Estructura obligatoria (cuatro secciones ## en Markdown)
+1. **Panorama macro** - Números gruesos del sector
+2. **Desafío estratégico** - Márgenes, costos logísticos, importaciones
+3. **Hoja de ruta** - Digitalización de la cadena de valor
+4. **Recomendaciones** - ROI, eficiencia, mitigación de riesgos
 
-EJEMPLO DE ORACION: "La presion sobre los margenes en la categoria frenos exige una revision estrategica de la cadena de suministro."
+## Estilo
+- Tono: directivo, conciso, basado en datos
+- Perspectiva de alto nivel
+- Ejemplo: "La presión sobre los márgenes en la categoría frenos exige una revisión estratégica de la cadena de suministro."
 
-PROHIBIDO:
-- Inventar palabras ("presionamiento").
-- Repetir "captura de la demanda" y "eficiencia comercial" mas de una vez cada una.
-- Lenguaje corporativo vacio. Usa terminos concretos: ROI, costos, margenes, riesgos logisticos.
+## Prohibido
+- Inventar palabras ("presionamiento")
+- Repetir frases más de una vez
+- Lenguaje corporativo vacío. Usa: ROI, costos, márgenes, riesgos logísticos
 
-OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = articulo invalido.
+OBLIGATORIO: El artículo DEBE terminar con meta description en *cursiva* (max 160 chars, sin etiqueta). Sin meta description = artículo inválido.
 
 {_REGLAS_UNIVERSALES}""",
 }
 
 PERSONAS_DISPONIBLES = list(SISTEMAS_REDACTAR.keys())
+
 
 def get_system_prompt_redactar(persona: str = "analitico") -> str:
     """Devuelve el system prompt para la personalidad indicada."""
@@ -208,29 +220,33 @@ def get_system_prompt_redactar(persona: str = "analitico") -> str:
         prompt = SISTEMAS_REDACTAR["analitico"]
     return prompt
 
+
 _SYSTEM_EVALUAR_CONTENIDO = """\
 Eres un auditor de calidad editorial especializado en contenido B2B de autopartes y aftermarket.
-Tu tarea es analizar el artículo provisto y validar el cumplimiento de los lineamientos de estilo y formato.
 
-LINEAMIENTOS a evaluar (cada articulo puede tener entre 3 y 4 secciones ## con titulos variables):
-1. "estructura_correcta": ¿El artículo contiene secciones (##) bien definidas con titulos coherentes al tema? No se requiere una estructura fija.
-2. "formato_negritas": ¿Están las cifras, porcentajes, empresas y fechas destacadas en **negrita**?
-3. "vocabulario_negocio": ¿Usa terminos como "parque automotor", "demanda cautiva", "ciclo de vida", "cadena de valor" u otros propios del sector en lugar de frases genericas?
-4. "tono_b2b": ¿El lenguaje es directo, profesional y enfocado al negocio (B2B), evitando anecdotas personales o lenguaje informal?
-5. "sin_paywall": ¿El texto esta limpio de frases de suscripcion, paywalls o "contenido exclusivo"?
-6. "no_repetitivo": ¿Cada seccion aporta informacion nueva (el como o el por que) sin repetir el enunciado del heading ni lo dicho en otras secciones?
+## Tu tarea
+Analizar el artículo y validar el cumplimiento de lineamientos de estilo y formato.
 
-Tu respuesta debe ser ÚNICAMENTE un objeto JSON con el resultado de cada lineamiento:
+## Lineamientos a evaluar
+1. **estructura_correcta** - ¿Contiene secciones (##) bien definidas con títulos coherentes?
+2. **formato_negritas** - ¿Cifras, porcentajes, empresas y fechas en **negrita**?
+3. **vocabulario_negocio** - ¿Usa términos del sector ("parque automotor", "demanda cautiva", "cadena de valor")?
+4. **tono_b2b** - ¿Lenguaje directo, profesional, enfocado al negocio?
+5. **sin_paywall** - ¿Sin frases de suscripción o paywalls?
+6. **no_repetitivo** - ¿Cada sección aporta información nueva?
+
+## Formato de salida
+Responde ÚNICAMENTE con este JSON:
 {
   "lineamientos": {
     "estructura_correcta": boolean,
     "formato_negritas": boolean,
-    "citas_formato": boolean,
+    "vocabulario_negocio": boolean,
     "tono_b2b": boolean,
     "sin_paywall": boolean,
     "no_repetitivo": boolean
   },
-  "comentarios": "string (breve observación general sobre la calidad)"
+  "comentarios": "string (breve observación general)"
 }"""
 
 _API_URL = f"{LMSTUDIO_URL}/chat/completions"
@@ -239,13 +255,18 @@ _DISPONIBLE = True
 
 # ── Helpers internos ───────────────────────────────────────────────────────────
 
-def _call_lm(mensaje_usuario: str, temperature: float = 0.1, max_tokens: int = 2048) -> str:
+
+def _call_lm(
+    mensaje_usuario: str, temperature: float = 0.1, max_tokens: int = 2048, system_prompt: str | None = None
+) -> str:
     """Envía un mensaje sin streaming y devuelve el texto completo."""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": mensaje_usuario})
     payload = {
         "model": MODELO,
-        "messages": [
-            {"role": "user", "content": f"{_SYSTEM_EVALUAR}\n\n{mensaje_usuario}"},
-        ],
+        "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
@@ -270,7 +291,7 @@ def _extraer_json(texto: str) -> dict:
     fin = texto.rfind("}")
     if inicio == -1 or fin == -1 or fin < inicio:
         raise json.JSONDecodeError("sin objeto JSON en la respuesta", texto, 0)
-    return json.loads(texto[inicio:fin + 1])
+    return json.loads(texto[inicio : fin + 1])
 
 
 def _extraer_primer_json(texto: str) -> dict:
@@ -298,7 +319,7 @@ def _extraer_primer_json(texto: str) -> dict:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                return json.loads(texto[inicio:i + 1])
+                return json.loads(texto[inicio : i + 1])
     raise json.JSONDecodeError("JSON sin cerrar en la respuesta", texto, inicio)
 
 
@@ -316,12 +337,13 @@ def verificar_conexion() -> bool:
 
 # ── API pública ────────────────────────────────────────────────────────────────
 
+
 def clasificar_articulo(titulo: str, cuerpo: str) -> dict:
     """
     Evalúa si un artículo merece guardarse en la BD.
-    
+
     Si LM Studio no está disponible, aprueba todo (modo degradado).
-    
+
     Returns:
         {"aprobado": bool, "razon": str}
     """
@@ -332,7 +354,7 @@ def clasificar_articulo(titulo: str, cuerpo: str) -> dict:
     mensaje = f"<EVALUAR>\nTítulo: {titulo}\n\nCuerpo: {cuerpo_truncado}"
 
     try:
-        respuesta = _call_lm(mensaje, temperature=0.1)
+        respuesta = _call_lm(mensaje, temperature=0.1, system_prompt=_SYSTEM_EVALUAR)
         data = _extraer_json(respuesta)
         return {
             "aprobado": data.get("aprobado", False),
@@ -373,10 +395,9 @@ def evaluar_lineamientos(articulo: str) -> dict:
         except Exception as e:
             ultimo_error = str(e)
             if intento < 2:
-                time.sleep(2 ** intento)  # backoff: 1s, 2s
+                time.sleep(2**intento)  # backoff: 1s, 2s
             continue
     return {"error": ultimo_error, "lineamientos": {}}
-
 
 
 def _extraer_delta(chunk: dict) -> str:
@@ -406,24 +427,24 @@ def generar_articulo(contexto: str, research: str = "", persona: str = "analitic
     if not _DISPONIBLE:
         raise RuntimeError("LM Studio no está disponible. Iniciá el servidor y reintentá.")
 
-    system_prompt = get_system_prompt_redactar(persona)
+    system_prompt = "Sos un redactor tecnico B2B para la industria de autopartes y aftermarket en latinoamerica. Escribi en espanol."
 
     if tema:
-        contexto = f"TEMA ESPECÍFICO: {tema}\n\n{contexto}"
+        contexto = f"TEMA: {tema}\n\n{contexto}"
 
     if research:
-        mensaje = f"<REDACTAR>\n<CONTEXTO>\n{contexto}\n</CONTEXTO>\n<RESEARCH>\n{research}\n</RESEARCH>"
+        mensaje = f"Redacta un articulo tecnico B2B sobre el siguiente contexto. El articulo debe tener 3 secciones con ## y terminar con meta description en *cursiva* (max 155 chars).\n\nREGLAS:\n- NUNCA confundas sistemas mecanicos (motor != transmision)\n- NUNCA uses placeholders (X km, Y%)\n- NUNCA copies precios o tablas del contexto. Transforma los datos en analisis.\n- Target: repuesteros y distribuidores, NO consumidores\n- Si mencionas normas (API, ACEA), explica QUE resuelven\n- USA kilometros, NUNCA millas\n\nCONTEXTO:\n{contexto}\n\nRESEARCH:\n{research}"
     else:
-        mensaje = f"<REDACTAR>\n<CONTEXTO>\n{contexto}\n</CONTEXTO>"
+        mensaje = f"Redacta un articulo tecnico B2B sobre el siguiente contexto. El articulo debe tener 3 secciones con ## y terminar con meta description en *cursiva* (max 155 chars).\n\nREGLAS:\n- NUNCA confundas sistemas mecanicos (motor != transmision)\n- NUNCA uses placeholders (X km, Y%)\n- NUNCA copies precios o tablas del contexto. Transforma los datos en analisis.\n- Target: repuesteros y distribuidores, NO consumidores\n- Si mencionas normas (API, ACEA), explica QUE resuelven\n- USA kilometros, NUNCA millas\n\nCONTEXTO:\n{contexto}"
 
     payload = {
         "model": MODELO,
         "messages": [
-            {"role": "user", "content": f"{system_prompt}\n\n{mensaje}"},
-            {"role": "assistant", "content": '{"accion": "redaccion",'},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": mensaje},
         ],
         "temperature": 0.7,
-        "max_tokens": 6000,
+        "max_tokens": 4000,
         "stream": True,
     }
 
@@ -477,13 +498,131 @@ def generar_articulo(contexto: str, research: str = "", persona: str = "analitic
             return ""
         texto = texto.strip()
         # El modelo a veces envuelve en ```markdown ... ```
-        texto = re.sub(r'^```(?:markdown)?\s*', '', texto)
-        texto = re.sub(r'\s*```$', '', texto)
+        texto = re.sub(r"^```(?:markdown)?\s*", "", texto)
+        texto = re.sub(r"\s*```$", "", texto)
+        # Eliminar etiquetas <ARTICULO> y </ARTICULO>
+        texto = re.sub(r"</?ARTICULO>", "", texto)
         # Eliminar lineas que son corchetes literales (borrador que se colo)
-        texto = re.sub(r'^\[.*?\]\s*', '', texto, flags=re.MULTILINE)
+        texto = re.sub(r"^\[.*?\]\s*", "", texto, flags=re.MULTILINE)
         # Eliminar etiquetas sueltas de Meta Description o SEO
-        texto = re.sub(r'(?i)(?:^|\n)\s*Meta Description:\s*', '\n', texto)
-        texto = re.sub(r'(?i)(?:^|\n)\s*SEO:\s*', '\n', texto)
+        texto = re.sub(r"(?i)(?:^|\n)\s*Meta Description:\s*", "\n", texto)
+        texto = re.sub(r"(?i)(?:^|\n)\s*SEO:\s*", "\n", texto)
+
+        # ── Intento 1: extraer texto legible que viene DESPUES del JSON ──
+        # El modelo a veces genera JSON de metadata y luego el articulo plano
+        lines = texto.split("\n")
+        articulo_start = -1
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("## ") or stripped.startswith("# "):
+                articulo_start = i
+                break
+        if articulo_start >= 0:
+            possible = "\n".join(lines[articulo_start:]).strip()
+            if len(possible) > 100:
+                return possible
+
+        # ── Intento 2: parsear JSON conocidos ──
+        for match in reversed(list(re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', texto, re.DOTALL))):
+            try:
+                data = json.loads(match.group(0))
+                partes = []
+                # Formato: "contenido"
+                if contenido := data.get("contenido"):
+                    if t := data.get("titulo"):
+                        partes.append(f"# {t}")
+                    partes.append(contenido)
+                    if md := data.get("meta_description"):
+                        partes.append(f"\n*{md.strip('*')}*")
+                    if partes:
+                        return "\n".join(partes)
+                # Formato: texto_seccion1/2/3
+                if data.get("texto_seccion1"):
+                    if t := data.get("titulo"):
+                        partes.append(f"# {t}")
+                    for i in range(1, 5):
+                        kt = f"seccion{i}"
+                        kv = f"texto_seccion{i}"
+                        if kv in data:
+                            st = data.get(kt, "")
+                            st = re.sub(r'^\*{1,2}', '', st).strip()
+                            st = re.sub(r'\*{1,2}$', '', st).strip()
+                            if st:
+                                partes.append(f"\n## {st}")
+                            partes.append(data[kv])
+                    if md := data.get("meta_description"):
+                        partes.append(f"\n*{md.strip('*')}*")
+                    if partes:
+                        return "\n".join(partes)
+                # Formato: "estructura"
+                if estructura := data.get("estructura"):
+                    if t := data.get("titulo"):
+                        partes.append(f"# {t}")
+                    if isinstance(estructura, list):
+                        for sec in estructura:
+                            if isinstance(sec, dict):
+                                if st := sec.get("sectionTitle") or sec.get("titulo"):
+                                    partes.append(f"\n## {st}")
+                                if tx := sec.get("content") or sec.get("texto"):
+                                    partes.append(tx)
+                    elif isinstance(estructura, dict):
+                        for key in sorted(estructura):
+                            val = estructura[key]
+                            if isinstance(val, str) and len(val) > 20:
+                                partes.append(f"\n## {key}")
+                                partes.append(val)
+                    if md := data.get("meta_description"):
+                        partes.append(f"\n*{md.strip('*')}*")
+                    if partes:
+                        return "\n".join(partes)
+                # Formato: seccion1/seccion2/seccion3
+                if any(f"seccion{i}" in data for i in range(1, 5)):
+                    if t := data.get("titulo"):
+                        partes.append(f"# {t}")
+                    for key in sorted(k for k in data if k.startswith("seccion")):
+                        sec = data[key]
+                        if isinstance(sec, dict):
+                            if st := sec.get("titulo"):
+                                partes.append(f"\n## {st}")
+                            if tx := sec.get("texto"):
+                                partes.append(tx)
+                        elif isinstance(sec, str) and len(sec) > 20:
+                            partes.append(f"\n## {key}")
+                            partes.append(sec)
+                    if md := data.get("meta_description"):
+                        partes.append(f"\n*{md.strip('*')}*")
+                    if partes:
+                        return "\n".join(partes)
+                # Formato: "texto" con sub-objetos {"#1": ..., "#2": ...}
+                if texto_val := data.get("texto"):
+                    if isinstance(texto_val, dict):
+                        if t := data.get("titulo"):
+                            partes.append(f"# {t}")
+                        for key in sorted(texto_val.keys()):
+                            val = texto_val[key]
+                            if isinstance(val, str) and len(val) > 10:
+                                partes.append(val)
+                        if md := data.get("meta_description"):
+                            partes.append(f"\n*{md.strip('*')}*")
+                        if partes:
+                            return "\n".join(partes)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        # ── Intento 3: extraer cualquier string largo de JSONs ──
+        textos_extraidos = []
+        for match in re.finditer(r'"(?:texto|content|contenido)":\s*"((?:[^"\\]|\\.){50,})"', texto):
+            textos_extraidos.append(match.group(1).replace("\\n", "\n").replace('\\"', '"'))
+        if textos_extraidos:
+            return "\n\n".join(textos_extraidos)
+
+        # ── Intento 4: limpiar artefactos JSON y devolver lo que quede ──
+        limpio = re.sub(r'"[^"]*":\s*"[^"]{0,40}",?\s*\n?', "", texto)
+        limpio = re.sub(r'[{}]', "", limpio)
+        limpio = re.sub(r'\n{3,}', '\n\n', limpio).strip()
+        if len(limpio) > 100:
+            return limpio
+
         return texto.strip()
 
     result = ""
@@ -507,11 +646,34 @@ def generar_articulo(contexto: str, research: str = "", persona: str = "analitic
     if not result:
         m = re.search(r'"articulo"\s*:\s*"(.+)"\s*}', articulo_raw, re.DOTALL)
         if m:
-            result = _limpiar_articulo(m.group(1).replace('\\n', '\n').replace('\\"', '"'))
+            result = _limpiar_articulo(m.group(1).replace("\\n", "\n").replace('\\"', '"'))
         else:
-            result = _limpiar_articulo(articulo_raw)
+            # Intentar parsear streaming JSON (multiples objetos JSON separados por newline)
+            partes_stream = []
+            meta_desc = ""
+            for line in articulo_raw.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if obj.get("texto"):
+                        partes_stream.append(obj["texto"])
+                    if obj.get("accion") == "meta_description" and obj.get("texto"):
+                        meta_desc = obj["texto"].strip("*")
+                except json.JSONDecodeError:
+                    continue
+            if partes_stream:
+                result = "\n\n".join(partes_stream)
+                if meta_desc:
+                    result += f"\n\n*{meta_desc}*"
+            else:
+                result = _limpiar_articulo(articulo_raw)
 
-    print(result)
+    try:
+        print(result)
+    except UnicodeEncodeError:
+        print(result.encode("utf-8", errors="replace").decode("utf-8"))
     print("\n[OK]")
     return result
 
@@ -541,7 +703,10 @@ def extraer_temas(articulos: list[dict]) -> list[str]:
 
     payload = {
         "model": MODELO,
-        "messages": [{"role": "user", "content": f"{PROMPT_TEMAS}\n\n{texto}"}],
+        "messages": [
+            {"role": "system", "content": PROMPT_TEMAS},
+            {"role": "user", "content": texto},
+        ],
         "temperature": 0.3,
         "max_tokens": 512,
         "stream": False,
@@ -587,7 +752,10 @@ def research_contexto(contexto: str) -> str:
 
     payload = {
         "model": MODELO,
-        "messages": [{"role": "user", "content": f"{PROMPT_RESEARCH}\n\n{contexto}"}],
+        "messages": [
+            {"role": "system", "content": PROMPT_RESEARCH},
+            {"role": "user", "content": contexto},
+        ],
         "temperature": 0.1,
         "max_tokens": 1024,
         "stream": False,
@@ -644,7 +812,7 @@ if __name__ == "__main__":
     try:
         r = clasificar_articulo(
             "Nueva línea de frenos para camiones",
-            "La empresa XYZ lanzó una nueva línea de pastillas de freno para camiones pesados."
+            "La empresa XYZ lanzó una nueva línea de pastillas de freno para camiones pesados.",
         )
         print(f"Resultado: {json.dumps(r, indent=2, ensure_ascii=False)}")
     except Exception as e:

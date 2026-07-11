@@ -1,0 +1,41 @@
+# .dockerignore - Prueba_Scrapling
+
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data (se monta como volumen)
+data/
+
+# Node (se construye aparte)
+node_modules
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.nyc_output

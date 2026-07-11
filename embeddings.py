@@ -12,7 +12,7 @@ Uso:
 
 import math
 
-from db import col_articulos, col_afterdrive
+from db import col_afterdrive, col_articulos
 from lm_studio import calcular_embedding
 
 # Colecciones de contenido (excluye 'articulos_descartados').

@@ -1,15 +1,27 @@
 import json
 import re
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
+import trafilatura
 from bs4 import BeautifulSoup
 from scrapling.fetchers import StealthyFetcher
-import trafilatura
 
 FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 15000}
 
-_PAGINAS_SALTAR = ["login", "register", "search", "tag", "author", "category", "contact", "about", "privacy", "terms", "moneda"]
+_PAGINAS_SALTAR = [
+    "login",
+    "register",
+    "search",
+    "tag",
+    "author",
+    "category",
+    "contact",
+    "about",
+    "privacy",
+    "terms",
+    "moneda",
+]
 
 
 class _Result:
@@ -20,7 +32,13 @@ class _Result:
 def _http_get(url: str, timeout: int = 15) -> str | None:
     """HTTP GET básico sin headless."""
     try:
-        r = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+        r = requests.get(
+            url,
+            timeout=timeout,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+        )
         r.raise_for_status()
         return r.text
     except Exception:
@@ -119,7 +137,7 @@ def _es_link_articulo(url: str, texto: str, dominio: str) -> bool:
     if not path or path == "/":
         return False
     # Saltar páginas de author/login/etc
-    if any(s in path for s in _PAGINAS_SALTAR if s in path):
+    if any(s in path for s in _PAGINAS_SALTAR):
         return False
     if any(url.endswith(ext) for ext in [".pdf", ".jpg", ".png", ".mp4", ".zip", ".xml", ".json"]):
         return False
@@ -194,7 +212,7 @@ def _procesar_listado(url: str, max_articulos: int, items: list):
     for i, link in enumerate(enlaces):
         if len(items) >= max_articulos:
             break
-        print(f"  [{i+1}/{len(enlaces)}] {link}")
+        print(f"  [{i + 1}/{len(enlaces)}] {link}")
         try:
             _, html_link = _fetch(link)
         except Exception as e:

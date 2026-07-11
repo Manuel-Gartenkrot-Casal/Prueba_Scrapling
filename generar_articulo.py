@@ -18,11 +18,11 @@ Flujo (ver charla de diseño):
 import argparse
 import datetime
 import re
-import sys
 
-from db import db, col_afterdrive, crear_indices_texto
-from lm_studio import generar_articulo as lm_generar, calcular_embedding, research_contexto
-from embeddings import coseno, texto_para_embedding
+from db import col_afterdrive, crear_indices_texto, db
+from embeddings import coseno
+from lm_studio import calcular_embedding
+from lm_studio import generar_articulo as lm_generar
 
 _PAYWALL_PATTERNS = [
     r"El contenido al que quiere acceder es exclusivo para suscriptores",
@@ -38,7 +38,7 @@ _PAYWALL_PATTERNS = [
 col_generados = db["articulos_generados"]
 
 FUENTES = {
-    "general":    col_generados,
+    "general": col_generados,
     "afterdrive": col_afterdrive,
 }
 
@@ -48,12 +48,12 @@ _MARGEN_RESPUESTA = 6000
 _CONTEXTO_MAXIMO = 32768
 
 # Parámetros de selección por embeddings (calibrados con la data real).
-UMBRAL_TOPICO = 0.70   # similitud mínima para considerar a un doc "vecino" de la semilla
-MIN_VECINOS   = 2      # una semilla necesita al menos esta cantidad de vecinos
-K_VECINOS     = 15     # cuántos vecinos como máximo entran al tópico
-UMBRAL_DEDUP  = 0.95   # si el artículo generado supera esto vs uno previo, se descarta
-MAX_INTENTOS  = 3      # cuántas semillas probar antes de rendirse
-LIMITE_TEXT   = 20     # docs por fuente en la búsqueda $text
+UMBRAL_TOPICO = 0.70  # similitud mínima para considerar a un doc "vecino" de la semilla
+MIN_VECINOS = 2  # una semilla necesita al menos esta cantidad de vecinos
+K_VECINOS = 15  # cuántos vecinos como máximo entran al tópico
+UMBRAL_DEDUP = 0.95  # si el artículo generado supera esto vs uno previo, se descarta
+MAX_INTENTOS = 3  # cuántas semillas probar antes de rendirse
+LIMITE_TEXT = 20  # docs por fuente en la búsqueda $text
 
 
 def _estimar_tokens(texto: str) -> int:
@@ -131,10 +131,14 @@ def _buscar_por_tema(tema: str, limite: int = LIMITE_TEXT) -> list[tuple[dict, f
     docs = []
     for nombre, col in FUENTES.items():
         try:
-            cursor = col.find(
-                {"$text": {"$search": tema}},
-                {"text_score": {"$meta": "textScore"}},
-            ).sort([("text_score", {"$meta": "textScore"})]).limit(limite)
+            cursor = (
+                col.find(
+                    {"$text": {"$search": tema}},
+                    {"text_score": {"$meta": "textScore"}},
+                )
+                .sort([("text_score", {"$meta": "textScore"})])
+                .limit(limite)
+            )
             for d in cursor:
                 d["_fuente"] = nombre
                 docs.append((d, d.get("text_score", 0.0)))
@@ -152,14 +156,16 @@ def _buscar_por_tema(tema: str, limite: int = LIMITE_TEXT) -> list[tuple[dict, f
 
 
 def guardar_articulo(contenido, ids_usados, fuentes, tema, embedding) -> None:
-    col_generados.insert_one({
-        "contenido":   contenido,
-        "fuentes":     fuentes,
-        "tema":        tema,
-        "docs_usados": [str(i) for i in ids_usados],
-        "embedding":   embedding,
-        "generado_en": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    })
+    col_generados.insert_one(
+        {
+            "contenido": contenido,
+            "fuentes": fuentes,
+            "tema": tema,
+            "docs_usados": [str(i) for i in ids_usados],
+            "embedding": embedding,
+            "generado_en": datetime.datetime.now(datetime.UTC).isoformat(),
+        }
+    )
 
 
 def marcar_usados(coleccion, ids: list) -> None:
@@ -169,19 +175,31 @@ def marcar_usados(coleccion, ids: list) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Generador de artículos con IA + embeddings (LM Studio)")
-    parser.add_argument("--fuente", nargs="+", choices=list(FUENTES.keys()),
-                        default=list(FUENTES.keys()), metavar="FUENTE",
-                        help="Fuentes a usar. Por defecto: todas.")
+    parser.add_argument(
+        "--fuente",
+        nargs="+",
+        choices=list(FUENTES.keys()),
+        default=list(FUENTES.keys()),
+        metavar="FUENTE",
+        help="Fuentes a usar. Por defecto: todas.",
+    )
     parser.add_argument("--budget-contexto", type=int, default=0, help="0 = auto (32768 - márgenes)")
-    parser.add_argument("--tema", type=str, default=None,
-                        help="Tema específico para el artículo. Si se omite, se elige por embeddings.")
-    parser.add_argument("--persona", type=str, default="analitico",
-                        choices=["analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"],
-                        help="Personalidad de redacción. Por defecto: analitico.")
+    parser.add_argument(
+        "--tema", type=str, default=None, help="Tema específico para el artículo. Si se omite, se elige por embeddings."
+    )
+    parser.add_argument(
+        "--persona",
+        type=str,
+        default="analitico",
+        choices=["analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"],
+        help="Personalidad de redacción. Por defecto: analitico.",
+    )
     args = parser.parse_args()
 
     # Aprovecha el contexto de 32K (mejora de Manuel): más vecinos por tópico.
-    budget = (args.budget_contexto if args.budget_contexto > 0 else _CONTEXTO_MAXIMO - _MARGEN_RESPUESTA) - _OVERHEAD_FIJO
+    budget = (
+        args.budget_contexto if args.budget_contexto > 0 else _CONTEXTO_MAXIMO - _MARGEN_RESPUESTA
+    ) - _OVERHEAD_FIJO
 
     # Asegurar índices $text para la búsqueda híbrida.
     crear_indices_texto()
@@ -203,8 +221,7 @@ def main():
         query_expandido = f"{args.tema} autopartes aftermarket repuestos"
         emb_tema = calcular_embedding(query_expandido) if candidatos else None
         if emb_tema:
-            scored = [(d, d["_fuente"], coseno(emb_tema, d["embedding"]))
-                       for d in candidatos if d.get("embedding")]
+            scored = [(d, d["_fuente"], coseno(emb_tema, d["embedding"])) for d in candidatos if d.get("embedding")]
             scored.sort(key=lambda x: x[1], reverse=True)
             scored = [x for x in scored if x[2] >= 0.50]
             if not scored:

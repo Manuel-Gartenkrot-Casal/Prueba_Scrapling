@@ -1,7 +1,8 @@
 import datetime
 import os
-from pymongo import MongoClient, ReplaceOne, UpdateOne
+
 from dotenv import load_dotenv
+from pymongo import MongoClient, ReplaceOne, UpdateOne
 
 load_dotenv()
 
@@ -12,15 +13,15 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/PruebaScrapling")
 client = MongoClient(MONGO_URI)
 db = client["PruebaScrapling"]
 
-col_articulos    = db["articulos"]        # Todos los artículos scrapeados
-col_trusted_urls = db["trusted_urls"]     # Lista blanca de URLs confiables
-col_descartados  = db["articulos_descartados"]
-col_afterdrive   = db["afterdrive"]
+col_articulos = db["articulos"]  # Todos los artículos scrapeados
+col_trusted_urls = db["trusted_urls"]  # Lista blanca de URLs confiables
+col_descartados = db["articulos_descartados"]
+col_afterdrive = db["afterdrive"]
 
 COLECCIONES_URLS = [col_articulos, col_afterdrive]
 
 COLECCIONES_TEXTO = {
-    col_articulos:  [("titulo", "text"), ("cuerpo", "text")],
+    col_articulos: [("titulo", "text"), ("cuerpo", "text")],
     col_afterdrive: [("titulo", "text"), ("cuerpo", "text")],
 }
 
@@ -33,7 +34,9 @@ def crear_indices_texto():
             pass
     try:
         col_generados = db["articulos_generados"]
-        col_generados.create_index([("contenido", "text")], default_language="spanish", name="text_search", background=True)
+        col_generados.create_index(
+            [("contenido", "text")], default_language="spanish", name="text_search", background=True
+        )
     except Exception:
         pass
 
@@ -46,10 +49,7 @@ def guardar_items(items, coleccion):
     if not items:
         return 0
 
-    operaciones = [
-        ReplaceOne({"url": item["url"]}, item, upsert=True)
-        for item in items
-    ]
+    operaciones = [ReplaceOne({"url": item["url"]}, item, upsert=True) for item in items]
     resultado = coleccion.bulk_write(operaciones)
     return resultado.upserted_count + resultado.modified_count
 
@@ -78,7 +78,7 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
         resultado = clasificador_fn(titulo, cuerpo)
 
         if resultado["aprobado"]:
-            print(f"    -> Aprobado")
+            print("    -> Aprobado")
             aprobados.append(item)
             detalles.append({"titulo": titulo, "estado": "aprobado"})
         else:
@@ -86,21 +86,24 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
             col_descartados.replace_one(
                 {"url": item.get("url", "")},
                 {
-                    "url":            item.get("url", ""),
-                    "fecha_descarte": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "url": item.get("url", ""),
+                    "fecha_descarte": datetime.datetime.now(datetime.UTC).isoformat(),
                 },
                 upsert=True,
             )
-            detalles.append({
-                "titulo": titulo,
-                "estado": "rechazado",
-                "razon":  resultado.get("razon", ""),
-            })
+            detalles.append(
+                {
+                    "titulo": titulo,
+                    "estado": "rechazado",
+                    "razon": resultado.get("razon", ""),
+                }
+            )
 
     if aprobados:
         print(f"  Generando embeddings para {len(aprobados)} artículo(s) aprobado(s)...")
         from embeddings import texto_para_embedding
         from lm_studio import calcular_embedding
+
         for j, item in enumerate(aprobados, 1):
             titulo = item.get("titulo", "(sin título)")
             print(f"  Embedding [{j}/{len(aprobados)}]: {titulo[:60]}")
@@ -109,20 +112,16 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
                 item["embedding"] = vec
 
         operaciones = [
-            UpdateOne(
-                {"url": item["url"]},
-                {"$set": item, "$setOnInsert": {"usado_para_articulo": False}},
-                upsert=True
-            )
+            UpdateOne({"url": item["url"]}, {"$set": item, "$setOnInsert": {"usado_para_articulo": False}}, upsert=True)
             for item in aprobados
         ]
         coleccion.bulk_write(operaciones)
 
     return {
-        "total":      len(items),
-        "aprobados":  len(aprobados),
+        "total": len(items),
+        "aprobados": len(aprobados),
         "rechazados": len(items) - len(aprobados),
-        "detalles":   detalles,
+        "detalles": detalles,
     }
 
 

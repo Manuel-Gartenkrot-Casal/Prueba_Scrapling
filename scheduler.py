@@ -1,6 +1,8 @@
 import datetime
+
 from apscheduler.schedulers.background import BackgroundScheduler
-from db import db, col_trusted_urls, col_articulos, clasificar_y_guardar
+
+from db import clasificar_y_guardar, col_articulos, col_trusted_urls
 from lm_studio import clasificar_articulo
 from scraper import start
 
@@ -9,9 +11,10 @@ DEFAULT_INTERVAL_DAYS = 1
 
 scheduler = BackgroundScheduler()
 
+
 def run_trusted_scraping():
     print(f"[{datetime.datetime.now()}] Iniciando scraping automatizado de URLs confiables...")
-    
+
     urls_confiables = list(col_trusted_urls.find({"estado": "activo"}))
 
     if not urls_confiables:
@@ -35,29 +38,30 @@ def run_trusted_scraping():
                 print(f"  [WARN] No se encontraron artículos nuevos en {url}")
 
             col_trusted_urls.update_one(
-                {"url": url},
-                {"$set": {"ultima_ejecucion": datetime.datetime.now(datetime.timezone.utc).isoformat()}}
+                {"url": url}, {"$set": {"ultima_ejecucion": datetime.datetime.now(datetime.UTC).isoformat()}}
             )
         except Exception as e:
             print(f"  [ERROR] Fallo al procesar {url}: {e}")
 
     print(f"[{datetime.datetime.now()}] Scraping automatizado finalizado.")
 
+
 def start_scheduler(interval_days=DEFAULT_INTERVAL_DAYS):
     """Inicia el scheduler con el intervalo especificado."""
     # Eliminar trabajos previos si existen para evitar duplicados al reiniciar
     if scheduler.get_job("trusted_scraping"):
         scheduler.remove_job("trusted_scraping")
-        
+
     scheduler.add_job(
-        run_trusted_scraping, 
-        "interval", 
-        days=interval_days, 
+        run_trusted_scraping,
+        "interval",
+        days=interval_days,
         id="trusted_scraping",
-        next_run_time=datetime.datetime.now() # Ejecutar inmediatamente al iniciar
+        next_run_time=datetime.datetime.now(),  # Ejecutar inmediatamente al iniciar
     )
     scheduler.start()
     print(f"Scheduler iniciado. Ejecución cada {interval_days} día(s).")
+
 
 def update_scheduler_interval(days: int):
     """Actualiza el intervalo de ejecución dinámicamente."""
@@ -66,6 +70,7 @@ def update_scheduler_interval(days: int):
         print(f"Intervalo actualizado a {days} día(s).")
     else:
         start_scheduler(days)
+
 
 def get_next_execution():
     """Devuelve la próxima fecha de ejecución programada."""

@@ -5,628 +5,1163 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AfterDrive Intelligence</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0a0a0a; --card-bg: #121212; --border: #222;
-      --text: #d0d0d0; --text-dim: #666; --accent: #f0b429;
-      --success: #66bb6a; --error: #ef5350;
+      --bg-primary: #080c14;
+      --bg-secondary: #0d1420;
+      --bg-card: #111827;
+      --bg-elevated: #1a2332;
+      --border: #1e293b;
+      --border-hover: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #f59e0b;
+      --accent-glow: rgba(245, 158, 11, 0.15);
+      --success: #10b981;
+      --error: #ef4444;
+      --info: #3b82f6;
     }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; padding: 30px 40px; min-height: 100vh; }
 
-    header { margin-bottom: 30px; }
-    header h1 { font-size: 1.5rem; color: #fff; font-weight: 500; }
-    header p { font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; }
-
-    .stats-bar {
-      display: flex; gap: 16px; margin-bottom: 30px; flex-wrap: wrap;
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
     }
-    .stat-card {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
-      padding: 14px 20px; flex: 1; min-width: 140px;
-    }
-    .stat-card .num { font-size: 1.6rem; font-weight: 700; color: #fff; }
-    .stat-card .label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
-    .stat-card .sub { font-size: 0.7rem; color: var(--accent); margin-top: 4px; }
-    .pulse { display: inline-block; width: 8px; height: 8px; background: var(--success); border-radius: 50%; margin-right: 6px; }
-    .pulse.off { background: var(--error); }
 
-    .grid {
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--accent) 0%, #d97706 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bg-primary);
+    }
+
+    .header-title {
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .header-title span {
+      color: var(--accent);
+    }
+
+    .header-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.875rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.off {
+      background: var(--error);
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Stats Grid */
+    .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 16px; margin-bottom: 30px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
     }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.2s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-top: 8px;
+    }
+
+    /* Main Grid */
+    .main-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
     .card {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
-      padding: 20px; display: flex; flex-direction: column;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.2s ease;
     }
-    .card h3 { font-size: 0.85rem; color: #fff; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-    .card .label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
 
-    .input-group { display: flex; gap: 8px; margin-bottom: 10px; }
-    input {
-      background: #000; border: 1px solid var(--border); color: #fff;
-      padding: 9px 12px; border-radius: 6px; font-size: 0.8rem; flex: 1;
+    .card:hover {
+      border-color: var(--border-hover);
     }
-    input:focus, select:focus { outline: none; border-color: var(--accent); }
-    select { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
 
-    button {
-      background: #fff; color: #000; border: none;
-      padding: 9px 14px; border-radius: 6px;
-      font-size: 0.8rem; font-weight: 600; cursor: pointer;
-      transition: opacity 0.2s; white-space: nowrap;
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
-    button:hover { opacity: 0.8; }
-    button:disabled { opacity: 0.3; cursor: not-allowed; }
-    .btn-ghost { background: #1a1a1a; color: #ccc; border: 1px solid #333; }
-    .btn-primary { background: var(--accent); color: #000; }
 
-    .feedback { font-size: 0.8rem; min-height: 1.4em; margin-top: 6px; }
+    .card-badge {
+      font-size: 0.65rem;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 500;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-description {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    /* Input Groups */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .input-field {
+      flex: 1;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .input-field::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--border);
+      border-color: var(--border-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      background: #d97706;
+      border-color: #d97706;
+    }
+
+    .btn-large {
+      padding: 14px 28px;
+      font-size: 1rem;
+    }
+
+    /* Feedback */
+    .feedback {
+      font-size: 0.85rem;
+      min-height: 1.5em;
+      margin-top: 8px;
+    }
+
     .feedback.ok { color: var(--success); }
     .feedback.err { color: var(--error); }
-    .feedback.info { color: var(--accent); }
+    .feedback.info { color: var(--info); }
 
-    .badge {
-      display: inline-block; background: #1a1a1a; color: var(--accent);
-      font-size: 0.65rem; padding: 2px 8px; border-radius: 10px; margin-left: 6px;
+    /* Select */
+    .select-field {
+      appearance: none;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 40px 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
     }
 
-    .auto-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: #aaa; margin-bottom: 10px; }
-    .auto-val { color: #fff; font-weight: 600; }
-    .auto-actions { display: flex; gap: 8px; margin-top: 4px; }
-    .auto-actions button { flex: 1; }
-    #next-run { font-size: 0.7rem; }
+    .select-field:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
 
-    .suggestion-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+    /* Automation Section */
+    .auto-config {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .auto-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .auto-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .auto-value {
+      font-size: 1rem;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .auto-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .auto-actions .btn {
+      flex: 1;
+    }
+
+    /* Suggestions List */
+    .suggestions-list {
+      max-height: 180px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+
     .suggestion-item {
-      background: #1a1a1a; border: 1px solid #222; padding: 6px 10px;
-      border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
-      font-size: 0.7rem; color: #aaa;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.8rem;
     }
-    .suggestion-item .url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
 
-    .actions-bar { display: flex; gap: 12px; justify-content: center; margin-bottom: 30px; }
-    .btn-large { padding: 14px 28px; font-size: 0.95rem; border-radius: 10px; }
+    .suggestion-url {
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 70%;
+    }
 
-    .log-container {
-      background: #050505; border: 1px solid var(--border); border-radius: 12px;
-      padding: 16px 20px; font-family: 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.75rem; line-height: 1.5; max-height: 500px; overflow-y: auto;
+    /* Full Width Card */
+    .card-full {
+      grid-column: 1 / -1;
     }
-    .log-header {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+
+    .generation-controls {
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-wrap: wrap;
     }
-    .log-header h2 { margin: 0; font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
-    .log-line { margin-bottom: 2px; border-left: 2px solid transparent; padding-left: 8px; }
-    .log-info { color: #888; }
+
+    .control-group {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .control-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    /* Console */
+    .console-section {
+      margin-top: 32px;
+    }
+
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .console-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .console-container {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      margin-bottom: 4px;
+      padding-left: 12px;
+      border-left: 2px solid transparent;
+    }
+
+    .log-info { color: var(--text-secondary); }
     .log-success { color: var(--success); border-left-color: var(--success); }
     .log-error { color: var(--error); border-left-color: var(--error); }
     .log-warn { color: var(--accent); border-left-color: var(--accent); }
 
+    /* Modal */
     .modal-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-      z-index: 1000; align-items: center; justify-content: center; padding: 20px;
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      backdrop-filter: blur(8px);
     }
+
     .modal-overlay.open { display: flex; }
+
     .modal {
-      background: #121212; border: 1px solid #222; border-radius: 16px;
-      width: 100%; max-width: 1100px; max-height: 90vh;
-      display: grid; grid-template-columns: 1fr 300px; overflow: hidden;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 1200px;
+      max-height: 90vh;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
-    .modal-main { display: flex; flex-direction: column; border-right: 1px solid #222; height: 90vh; max-height: 90vh; }
-    .modal-header { padding: 16px 20px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-    .modal-body { padding: 20px; overflow-y: auto; flex: 1 1 auto; color: #b0b0b0; line-height: 1.7; min-height: 0; }
-    .modal-footer { padding: 14px 20px; border-top: 1px solid #222; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
-    .modal-sidebar { background: #0d0d0d; padding: 20px; display: flex; flex-direction: column; gap: 16px; height: 90vh; overflow-y: auto; }
-    .modal-sidebar h3 { font-size: 0.85rem; color: #fff; margin-bottom: 8px; flex-shrink: 0; }
-    .checklist { display: flex; flex-direction: column; gap: 10px; }
-    .check-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #888; }
+
+    .modal-main {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      height: 90vh;
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      color: var(--text-secondary);
+      line-height: 1.8;
+    }
+
+    .modal-body h1 { color: var(--text-primary); margin-bottom: 20px; font-size: 1.5rem; }
+    .modal-body h2 { color: var(--text-primary); margin: 24px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .modal-body p { margin-bottom: 16px; }
+    .modal-body strong { color: var(--text-primary); }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .modal-sidebar {
+      background: var(--bg-secondary);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      height: 90vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
     .check-item.ok { color: var(--success); }
     .check-item.fail { color: var(--error); }
-    .check-item .dot { width: 7px; height: 7px; border-radius: 50%; background: #333; flex-shrink: 0; }
-    .check-item.ok .dot { background: var(--success); }
-    .check-item.fail .dot { background: var(--error); }
 
-    .modal-body h1 { color: #fff; margin-bottom: 16px; font-size: 1.4rem; }
-    .modal-body h2 { color: #e0e0e0; margin: 20px 0 10px; border-bottom: 1px solid #222; padding-bottom: 4px; }
-    .modal-body p { margin-bottom: 14px; }
-    .modal-body strong { color: #fff; }
+    .check-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .check-item.ok .check-dot { background: var(--success); }
+    .check-item.fail .check-dot { background: var(--error); }
+
+    .eval-comments {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-top: 12px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .main-grid { grid-template-columns: 1fr; }
+      .modal { grid-template-columns: 1fr; }
+      .modal-sidebar { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      .app-container { padding: 16px; }
+      .header { flex-direction: column; gap: 16px; align-items: flex-start; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .generation-controls { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
-
-<header>
-  <div>
-    <h1>AfterDrive <span style="color:var(--accent)">Intelligence</span></h1>
-    <p>Command Center &mdash; Automatización del nicho de autopartes</p>
-  </div>
-</header>
-
-<div class="stats-bar" id="statsBar">
-  <div class="stat-card"><div class="num" id="statUrls">-</div><div class="label">URLs Confiables</div><div class="sub" id="statUrlsSub"></div></div>
-  <div class="stat-card"><div class="num" id="statArticles">-</div><div class="label">Artículos en DB</div><div class="sub" id="statArticlesSub"></div></div>
-  <div class="stat-card"><div class="num" id="statLastRun">-</div><div class="label">Última Ejecución</div><div class="sub" id="statNextRun"></div></div>
-  <div class="stat-card"><div class="num"><span class="pulse" id="statusPulse"></span><span id="statusText">OK</span></div><div class="label">API</div><div class="sub" id="statusDetail">Conectada</div></div>
-</div>
-
-<div class="grid">
-  <div class="card">
-    <div class="label">Inteligencia</div>
-    <h3>Filtro de Volumen</h3>
-    <div class="input-group">
-      <input type="text" id="vol-kw" placeholder="Keyword (ej. frenos)..." />
-      <button onclick="checkVolume()">Consultar</button>
-    </div>
-    <div id="vol-res" class="feedback"></div>
-  </div>
-
-  <div class="card">
-    <div class="label">Fuentes</div>
-    <h3>Agregar URL Confiable</h3>
-    <div class="input-group">
-      <input type="text" id="url-in" placeholder="https://..." />
-      <button onclick="addUrl()" id="btn-addurl">Agregar</button>
-    </div>
-    <div id="url-status" class="feedback"></div>
-  </div>
-
-  <div class="card">
-    <div class="label">Sistema</div>
-    <h3>Automatización <span class="badge" id="autoActiveBadge">0 activas</span></h3>
-    <div class="auto-row"><span>Frecuencia:</span>
-      <div style="display:flex; gap:4px; align-items:center">
-        <input type="number" id="auto-days" value="1" min="1" style="width:45px" />
-        <span>días</span>
-      </div>
-    </div>
-    <div class="auto-row"><span>Próxima ejecución:</span><span id="next-run" class="auto-val">-</span></div>
-    <div class="auto-row"><span>Última ejecución:</span><span id="last-run" class="auto-val">-</span></div>
-    <div class="auto-actions">
-      <button onclick="saveConfig()" id="btn-savecfg">Guardar</button>
-      <button onclick="runNowStream()" id="btn-runnow" class="btn-ghost">Ejecutar Ahora</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="label">Exploración</div>
-    <h3>Descubrimiento</h3>
-    <button onclick="discover()" style="width:100%; margin-bottom:10px" id="btn-disc">Buscar Nuevas Fuentes</button>
-    <div class="suggestion-list" id="sug-list"></div>
-  </div>
-</div>
-
-<div class="grid">
-  <div class="card" style="grid-column: 1 / -1;">
-    <div class="label">Redacción</div>
-    <h3>Generar Artículo con IA</h3>
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
-      <div style="flex: 2; min-width: 200px;">
-        <div class="label" style="margin-bottom: 4px;">Tema (opcional)</div>
-        <div class="input-group">
-          <input type="text" id="gen-tema" placeholder="Ej: frenos, filtros de aceite, mercado aftermarket..." />
-          <button class="btn-ghost" onclick="checkVolumeGen()" style="font-size:0.7rem;">Volumen</button>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="header-logo">AD</div>
+        <div>
+          <h1 class="header-title">AfterDrive <span>Intelligence</span></h1>
+          <p class="header-subtitle">Command Center — Automatización del nicho de autopartes</p>
         </div>
-        <div id="gen-vol-res" class="feedback" style="margin-top:2px;"></div>
       </div>
-      <div style="flex: 1; min-width: 140px;">
-        <div class="label" style="margin-bottom: 4px;">Personalidad</div>
-        <select id="gen-persona" style="background:#000; border:1px solid var(--border); color:#fff; padding:9px 12px; border-radius:6px; font-size:0.8rem; width:100%;">
-          <option value="analitico">Analítico-Técnico</option>
-          <option value="periodistico">Periodístico</option>
-          <option value="comercial">Comercial</option>
-          <option value="divulgativo">Divulgativo</option>
-          <option value="ejecutivo">Ejecutivo</option>
-        </select>
+      <div class="header-status">
+        <div class="status-indicator">
+          <div class="status-dot" id="statusPulse"></div>
+          <span id="statusText">Conectando...</span>
+        </div>
       </div>
-      <div style="display: flex; gap: 8px;">
-        <button class="btn-primary btn-large" id="btn-gen" onclick="generarStream()" style="padding:9px 28px;">Generar</button>
-        <button class="btn-ghost btn-large" onclick="verUltimo()" style="padding:9px 18px; font-size:0.75rem;">Último</button>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">URLs Confiables</div>
+        <div class="stat-value" id="statUrls">—</div>
+        <div class="stat-sub" id="statUrlsSub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Artículos en DB</div>
+        <div class="stat-value" id="statArticles">—</div>
+        <div class="stat-sub" id="statArticlesSub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Última Ejecución</div>
+        <div class="stat-value" id="statLastRun">—</div>
+        <div class="stat-sub" id="statNextRun"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Próxima Ejecución</div>
+        <div class="stat-value" id="statNextRunVal">—</div>
+        <div class="stat-sub" id="statInterval"></div>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <!-- Volume Filter -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Filtro de Volumen</h3>
+          <span class="card-badge">Inteligencia</span>
+        </div>
+        <p class="card-description">Consultá el volumen de artículos disponibles por keyword</p>
+        <div class="input-row">
+          <input type="text" id="vol-kw" class="input-field" placeholder="Ej: frenos, filtros, embrague..." />
+          <button class="btn" onclick="checkVolume()">Consultar</button>
+        </div>
+        <div id="vol-res" class="feedback"></div>
+      </div>
+
+      <!-- Add URL -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Agregar URL Confiable</h3>
+          <span class="card-badge">Fuentes</span>
+        </div>
+        <p class="card-description">Agregá fuentes confiables para mejorar la calidad del scraping</p>
+        <div class="input-row">
+          <input type="text" id="url-in" class="input-field" placeholder="https://..." />
+          <button class="btn" onclick="addUrl()" id="btn-addurl">Agregar</button>
+        </div>
+        <div id="url-status" class="feedback"></div>
+      </div>
+
+      <!-- Automation -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Automatización</h3>
+          <span class="card-badge" id="autoActiveBadge">0 activas</span>
+        </div>
+        <p class="card-description">Configurá la ejecución automática del pipeline</p>
+        <div class="auto-config">
+          <div class="auto-field">
+            <span class="auto-label">Frecuencia</span>
+            <div style="display:flex; gap:8px; align-items:center">
+              <input type="number" id="auto-days" value="1" min="1" class="input-field" style="width:80px" />
+              <span class="auto-value">días</span>
+            </div>
+          </div>
+          <div class="auto-field">
+            <span class="auto-label">Próxima ejecución</span>
+            <span class="auto-value" id="next-run">—</span>
+          </div>
+          <div class="auto-field">
+            <span class="auto-label">Última ejecución</span>
+            <span class="auto-value" id="last-run">—</span>
+          </div>
+        </div>
+        <div class="auto-actions">
+          <button class="btn" onclick="saveConfig()" id="btn-savecfg">Guardar Config</button>
+          <button class="btn btn-primary" onclick="runNowStream()" id="btn-runnow">Ejecutar Ahora</button>
+          <button class="btn" onclick="runDemoStream()" id="btn-demo" style="background:var(--success);color:#000;border-color:var(--success)">Demo 60s</button>
+        </div>
+      </div>
+
+      <!-- Discovery -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Descubrimiento de Fuentes</h3>
+          <span class="card-badge">Exploración</span>
+        </div>
+        <p class="card-description">Buscá nuevas fuentes automatizadamente con IA</p>
+        <button class="btn" onclick="discover()" id="btn-disc" style="width:100%; margin-bottom:12px">Buscar Nuevas Fuentes</button>
+        <div class="suggestions-list" id="sug-list"></div>
+      </div>
+
+      <!-- Article Generator -->
+      <div class="card card-full">
+        <div class="card-header">
+          <h3 class="card-title">Generador de Artículos con IA</h3>
+          <span class="card-badge">Redacción</span>
+        </div>
+        <p class="card-description">Generá artículos profesionales optimizados para SEO</p>
+        <div class="generation-controls">
+          <div class="control-group" style="flex: 2;">
+            <div class="control-label">Tema (opcional)</div>
+            <div class="input-row">
+              <input type="text" id="gen-tema" class="input-field" placeholder="Ej: frenos, filtros de aceite, mercado aftermarket..." />
+              <button class="btn" onclick="checkVolumeGen()">Volumen</button>
+            </div>
+            <div id="gen-vol-res" class="feedback"></div>
+          </div>
+          <div class="control-group" style="flex: 1; min-width: 160px;">
+            <div class="control-label">Personalidad</div>
+            <select id="gen-persona" class="select-field" style="width:100%">
+              <option value="analitico">Analítico-Técnico</option>
+              <option value="periodistico">Periodístico</option>
+              <option value="comercial">Comercial</option>
+              <option value="divulgativo">Divulgativo</option>
+              <option value="ejecutivo">Ejecutivo</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:10px">
+            <button class="btn btn-primary btn-large" id="btn-gen" onclick="generarStream()">Generar</button>
+            <button class="btn" onclick="verUltimo()">Último Artículo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console -->
+    <div class="console-section">
+      <div class="console-header">
+        <span class="console-title">Consola de Procesos</span>
+        <button class="btn" style="padding:6px 12px; font-size:0.75rem" onclick="limpiarLogs()">Limpiar</button>
+      </div>
+      <div id="logs" class="console-container">
+        <div class="log-entry log-info">Sistema listo. Esperando instrucciones...</div>
       </div>
     </div>
   </div>
-</div>
 
-<div class="log-section">
-  <div class="log-header">
-    <h2>Consola de Procesos</h2>
-    <div style="display:flex; gap:8px">
-      <button class="btn-ghost" style="font-size:0.6rem; padding:3px 8px" onclick="limpiarLogs()">Limpiar</button>
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal-art" onclick="if(event.target===this)cerrar()">
+    <div class="modal">
+      <div class="modal-main">
+        <div class="modal-header">
+          <h2 class="modal-title">Resultado de Generación</h2>
+          <button class="modal-close" onclick="cerrar()">&times;</button>
+        </div>
+        <div class="modal-body" id="art-body"></div>
+        <div class="modal-footer">
+          <button class="btn" onclick="copiar()">Copiar Texto</button>
+          <button class="btn" onclick="cerrar()">Cerrar</button>
+        </div>
+      </div>
+      <div class="modal-sidebar">
+        <h3 class="sidebar-title">Checklist de Calidad</h3>
+        <div class="checklist" id="check-list"></div>
+        <div id="eval-comms" class="eval-comments"></div>
+      </div>
     </div>
   </div>
-  <div id="logs" class="log-container">
-    <div class="log-line log-info">Sistema listo. Esperando instrucciones...</div>
-  </div>
-</div>
 
-<div class="modal-overlay" id="modal-art" onclick="if(event.target===this)cerrar()">
-  <div class="modal">
-    <div class="modal-main">
-      <div class="modal-header"><h2>Resultado de Generación</h2><button class="btn-ghost" style="border:none; font-size:1.2rem" onclick="cerrar()">&times;</button></div>
-      <div class="modal-body" id="art-body"></div>
-      <div class="modal-footer"><button onclick="copiar()">Copiar Texto</button><button class="btn-ghost" onclick="cerrar()">Cerrar</button></div>
-    </div>
-    <div class="modal-sidebar">
-      <h3>Checklist de Calidad</h3>
-      <div class="checklist" id="check-list"></div>
-      <div id="eval-comms" style="font-size:0.7rem; color:#666; margin-top:10px; font-style:italic"></div>
-    </div>
-  </div>
-</div>
+  <script>
+    const $ = id => document.getElementById(id);
 
-<script>
-const $ = id => document.getElementById(id);
+    function now() { return new Date().toLocaleTimeString(); }
 
-function now() { return new Date().toLocaleTimeString(); }
-
-function log(msg, type='info') {
-  const l = document.createElement('div');
-  l.className = 'log-line log-' + type;
-  l.textContent = `[${now()}] ${msg}`;
-  const c = $('logs');
-  c.appendChild(l);
-  c.scrollTop = c.scrollHeight;
-}
-
-function limpiarLogs() { $('logs').innerHTML = ''; log('Logs limpiados.'); }
-
-async function updateStats() {
-  try {
-    const r = await fetch('/api/trusted-urls-stats');
-    const d = await r.json();
-    if (d.success) {
-      $('statUrls').textContent = d.activas;
-      $('statUrlsSub').textContent = `${d.total} registradas`;
-      $('autoActiveBadge').textContent = `${d.activas} activas`;
-      if (d.ultima_ejecucion) {
-        const dt = new Date(d.ultima_ejecucion);
-        $('statLastRun').textContent = dt.toLocaleDateString();
-        $('last-run').textContent = dt.toLocaleString();
-      } else {
-        $('statLastRun').textContent = 'Nunca';
-        $('last-run').textContent = 'Nunca';
-      }
+    function log(msg, type='info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${now()}] ${msg}`;
+      const container = $('logs');
+      container.appendChild(entry);
+      container.scrollTop = container.scrollHeight;
     }
-  } catch(e) {}
 
-  try {
-    const r = await fetch('/api/check-volume?keyword=autopartes');
-    const d = await r.json();
-    if (d.success) {
-      $('statArticles').textContent = d.count.toLocaleString();
+    function limpiarLogs() {
+      $('logs').innerHTML = '';
+      log('Logs limpiados.');
     }
-  } catch(e) {}
 
-  try {
-    const r = await fetch('/api/scraping-config');
-    const d = await r.json();
-    if (d.success) {
-      $('auto-days').value = d.interval_days;
-      if (d.next_execution) {
-        const nx = new Date(d.next_execution);
-        $('next-run').textContent = nx.toLocaleString();
-        $('statNextRun').textContent = `Próxima: ${nx.toLocaleString()}`;
-      }
-    }
-  } catch(e) {}
-
-  // Health
-  try {
-    const r = await fetch('/api/health');
-    const d = await r.json();
-    if (d.scrapers && d.scrapers.status === 'ok') {
-      $('statusPulse').className = 'pulse';
-      $('statusText').textContent = 'OK';
-      $('statusDetail').textContent = 'API Conectada';
-    } else {
-      throw new Error('no ok');
-    }
-  } catch(e) {
-    $('statusPulse').className = 'pulse off';
-    $('statusText').textContent = 'FALLA';
-    $('statusDetail').textContent = 'Sin conexión';
-  }
-}
-
-// ── Volume ──
-async function checkVolume() {
-  const kw = $('vol-kw').value;
-  if(!kw) return;
-  const el = $('vol-res');
-  el.className = 'feedback info';
-  el.textContent = 'Consultando...';
-  try {
-    const r = await fetch(`/api/check-volume?keyword=${encodeURIComponent(kw)}`);
-    const d = await r.json();
-    if (d.success) {
-      el.className = 'feedback ok';
-      el.textContent = `${d.count} artículos disponibles para "${kw}"`;
-    } else {
-      el.className = 'feedback err';
-      el.textContent = 'Error al consultar';
-    }
-  } catch(e) { el.className = 'feedback err'; el.textContent = 'Error de conexión'; }
-}
-
-// ── URL ──
-async function addUrl() {
-  const url = $('url-in').value;
-  if(!url) return;
-  const el = $('url-status');
-  const btn = $('btn-addurl');
-  btn.disabled = true;
-  el.className = 'feedback info';
-  el.textContent = 'Procesando...';
-  try {
-    const r = await fetch('/api/add-url', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url})
-    });
-    const d = await r.json();
-    if (d.success) {
-      el.className = 'feedback ok';
-      el.textContent = `[OK] Agregada a Confiables (${d.output.split('\n').slice(-3, -2)[0] || '1 aprobado'})`;
-      $('url-in').value = '';
-      log(`URL agregada: ${url}`, 'success');
-      updateStats();
-    } else {
-      el.className = 'feedback err';
-      el.textContent = `[ERROR] ${d.error || 'Falló'}`;
-      log(`Error al agregar URL: ${d.error}`, 'error');
-    }
-  } catch(e) { el.className = 'feedback err'; el.textContent = 'Error de conexión'; }
-  finally { btn.disabled = false; }
-}
-
-// ── Automation ──
-async function loadAuto() {
-  try {
-    const r = await fetch('/api/scraping-config');
-    const d = await r.json();
-    if(d.success) {
-      $('auto-days').value = d.interval_days;
-      $('next-run').textContent = d.next_execution ? new Date(d.next_execution).toLocaleString() : '-';
-    }
-  } catch(e) {}
-}
-
-async function saveConfig() {
-  const days = parseInt($('auto-days').value);
-  try {
-    await fetch('/api/scraping-config', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({interval_days: days})
-    });
-    log(`Intervalo actualizado a ${days} día(s)`, 'success');
-    loadAuto();
-  } catch(e) { log('Error al guardar configuración', 'error'); }
-}
-
-async function runNowStream() {
-  const btn = $('btn-runnow');
-  btn.disabled = true;
-  btn.textContent = 'Ejecutando...';
-  log('--- INICIANDO SCRAPING MANUAL ---', 'warn');
-  try {
-    const res = await fetch('/api/stream/run-automation', { method: 'POST' });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value);
-      text.split('\n').forEach(l => { if (l) log(l, l.includes('[OK]') ? 'success' : l.includes('[ERROR]') ? 'error' : l.includes('[WARN]') ? 'warn' : 'info'); });
-    }
-    log('--- SCRAPING FINALIZADO ---', 'success');
-    updateStats();
-  } catch(e) {
-    log(`Error en scraping: ${e.message}`, 'error');
-  }
-  finally { btn.disabled = false; btn.textContent = 'Ejecutar Ahora'; }
-}
-
-// ── Discovery ──
-async function discover() {
-  const btn = $('btn-disc');
-  const list = $('sug-list');
-  btn.disabled = true;
-  btn.textContent = 'Buscando...';
-  list.innerHTML = '';
-  log('Iniciando descubrimiento de fuentes...', 'warn');
-  try {
-    const r = await fetch('/api/discover-sources', { method: 'POST' });
-    const d = await r.json();
-    log(d.success ? 'Descubrimiento completado' : `Error: ${d.error}`, d.success ? 'success' : 'error');
-    const r2 = await fetch('/api/suggested-urls');
-    const d2 = await r2.json();
-    if (d2.success && d2.urls.length) {
-      d2.urls.forEach(u => {
-        const item = document.createElement('div');
-        item.className = 'suggestion-item';
-        item.innerHTML = `<span class="url">${u.url}</span> <button onclick="addSug('${u.url.replace(/'/g, "\\'")}')">Añadir</button>`;
-        list.appendChild(item);
-      });
-      log(`${d2.urls.length} sugerencias encontradas`, 'success');
-    } else {
-      list.innerHTML = '<div style="color:#555;font-size:0.7rem;text-align:center;padding:10px">No se encontraron sugerencias.</div>';
-      log('No se encontraron nuevas fuentes', 'info');
-    }
-  } catch(e) { log('Error en descubrimiento', 'error'); }
-  finally { btn.disabled = false; btn.textContent = 'Buscar nuevas fuentes'; }
-}
-
-async function addSug(url) {
-  $('url-in').value = url;
-  $('url-in').focus();
-  log(`URL cargada desde sugerencias: ${url}`, 'info');
-}
-
-// ── Volume desde generador ──
-async function checkVolumeGen() {
-  const kw = $('gen-tema').value;
-  if (!kw) return;
-  const el = $('gen-vol-res');
-  el.className = 'feedback info';
-  el.textContent = 'Consultando...';
-  try {
-    const r = await fetch(`/api/check-volume?keyword=${encodeURIComponent(kw)}`);
-    const d = await r.json();
-    if (d.success) {
-      el.className = 'feedback ok';
-      el.textContent = `${d.count} articulos disponibles para "${kw}"`;
-    } else {
-      el.className = 'feedback err';
-      el.textContent = 'Error al consultar';
-    }
-  } catch (e) { el.className = 'feedback err'; el.textContent = 'Error de conexion'; }
-}
-
-// ── Generacion Streaming ──
-function playClick() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = 800; gain.gain.value = 0.15;
-    osc.start(); osc.stop(ctx.currentTime + 0.08);
-  } catch(e) {}
-}
-
-async function generarStream() {
-  const btn = $('btn-gen');
-  btn.disabled = true;
-  const tema = $('gen-tema').value.trim();
-  const persona = $('gen-persona').value;
-  log(`--- INICIANDO GENERACION DE ARTICULO (${persona})${tema ? ' - Tema: ' + tema : ''} ---`, 'warn');
-  let exito = false;
-  try {
-    const res = await fetch('/api/stream/generar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tema, persona })
-    });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let fullOutput = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value);
-      fullOutput += text;
-      text.split('\n').forEach(l => {
-        if (!l) return;
-        if (l.includes('[ERROR]')) {
-          log(l, 'error');
-        } else if (l.match(/^  \[\d+s\]/)) {
-          log(l.trim(), 'info');
-        } else if (l.match(/^  Generaci.n/)) {
-          log(l.trim(), 'success');
-        } else if (l.trim() == '[OK]') {
-          // primer [OK] = articulo listo
-          if (!exito) log('Articulo generado correctamente', 'success');
+    async function updateStats() {
+      try {
+        const r = await fetch('/api/trusted-urls-stats');
+        const d = await r.json();
+        if (d.success) {
+          $('statUrls').textContent = d.activas;
+          $('statUrlsSub').textContent = `${d.total} registradas`;
+          $('autoActiveBadge').textContent = `${d.activas} activas`;
+          if (d.ultima_ejecucion) {
+            const dt = new Date(d.ultima_ejecucion);
+            $('statLastRun').textContent = dt.toLocaleDateString();
+            $('last-run').textContent = dt.toLocaleString();
+          } else {
+            $('statLastRun').textContent = 'Nunca';
+            $('last-run').textContent = 'Nunca';
+          }
         }
-        // Todo lo demas (articulo, [OK] adicional, etc.) se silencia
-      });
-    }
-    exito = fullOutput.includes('[OK]');
+      } catch(e) {}
 
-    if (exito) {
-      playClick();
-      // Cargar ultimo articulo automaticamente con evaluacion
+      try {
+        const r = await fetch('/api/check-volume?keyword=autopartes');
+        const d = await r.json();
+        if (d.success) {
+          $('statArticles').textContent = d.count.toLocaleString();
+        }
+      } catch(e) {}
+
+      try {
+        const r = await fetch('/api/scraping-config');
+        const d = await r.json();
+        if (d.success) {
+          $('auto-days').value = d.interval_days;
+          if (d.next_execution) {
+            const nx = new Date(d.next_execution);
+            $('next-run').textContent = nx.toLocaleString();
+            $('statNextRunVal').textContent = nx.toLocaleDateString();
+            $('statInterval').textContent = `Cada ${d.interval_days} día(s)`;
+          }
+        }
+      } catch(e) {}
+
+      try {
+        const r = await fetch('/api/health');
+        const d = await r.json();
+        if (d.scrapers && d.scrapers.status === 'ok') {
+          $('statusPulse').className = 'status-dot';
+          $('statusText').textContent = 'API Conectada';
+        } else {
+          throw new Error('no ok');
+        }
+      } catch(e) {
+        $('statusPulse').className = 'status-dot off';
+        $('statusText').textContent = 'Sin Conexión';
+      }
+    }
+
+    async function checkVolume() {
+      const kw = $('vol-kw').value;
+      if(!kw) return;
+      const el = $('vol-res');
+      el.className = 'feedback info';
+      el.textContent = 'Consultando...';
+      try {
+        const r = await fetch(`/api/check-volume?keyword=${encodeURIComponent(kw)}`);
+        const d = await r.json();
+        if (d.success) {
+          el.className = 'feedback ok';
+          el.textContent = `${d.count} artículos disponibles para "${kw}"`;
+        } else {
+          el.className = 'feedback err';
+          el.textContent = 'Error al consultar';
+        }
+      } catch(e) { el.className = 'feedback err'; el.textContent = 'Error de conexión'; }
+    }
+
+    async function addUrl() {
+      const url = $('url-in').value;
+      if(!url) return;
+      const el = $('url-status');
+      const btn = $('btn-addurl');
+      btn.disabled = true;
+      el.className = 'feedback info';
+      el.textContent = 'Procesando...';
+      try {
+        const r = await fetch('/api/add-url', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url})
+        });
+        const d = await r.json();
+        if (d.success) {
+          el.className = 'feedback ok';
+          el.textContent = `URL agregada correctamente`;
+          $('url-in').value = '';
+          log(`URL agregada: ${url}`, 'success');
+          updateStats();
+        } else {
+          el.className = 'feedback err';
+          el.textContent = `Error: ${d.error || 'Falló'}`;
+          log(`Error al agregar URL: ${d.error}`, 'error');
+        }
+      } catch(e) { el.className = 'feedback err'; el.textContent = 'Error de conexión'; }
+      finally { btn.disabled = false; }
+    }
+
+    async function saveConfig() {
+      const days = parseInt($('auto-days').value);
+      try {
+        await fetch('/api/scraping-config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({interval_days: days})
+        });
+        log(`Intervalo actualizado a ${days} día(s)`, 'success');
+        updateStats();
+      } catch(e) { log('Error al guardar configuración', 'error'); }
+    }
+
+    async function runNowStream() {
+      const btn = $('btn-runnow');
+      btn.disabled = true;
+      btn.textContent = 'Ejecutando...';
+      log('--- INICIANDO SCRAPING MANUAL ---', 'warn');
+      try {
+        const res = await fetch('/api/stream/run-automation', { method: 'POST' });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value);
+          text.split('\n').forEach(l => {
+            if (l) log(l, l.includes('[OK]') ? 'success' : l.includes('[ERROR]') ? 'error' : l.includes('[WARN]') ? 'warn' : 'info');
+          });
+        }
+        log('--- SCRAPING FINALIZADO ---', 'success');
+        updateStats();
+      } catch(e) {
+        log(`Error en scraping: ${e.message}`, 'error');
+      }
+      finally { btn.disabled = false; btn.textContent = 'Ejecutar Ahora'; }
+    }
+
+    async function runDemoStream() {
+      const btn = $('btn-demo');
+      btn.disabled = true;
+      btn.textContent = 'Demo...';
+      log('--- MODO DEMO: Pipeline completo en <60s ---', 'warn');
+      try {
+        const res = await fetch('/api/stream/demo', { method: 'POST' });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value);
+          text.split('\n').forEach(l => {
+            if (l) log(l, l.includes('[OK]') ? 'success' : l.includes('[ERROR]') ? 'error' : l.includes('[WARN]') ? 'warn' : 'info');
+          });
+        }
+        log('--- DEMO COMPLETADA ---', 'success');
+        updateStats();
+      } catch(e) {
+        log(`Error en demo: ${e.message}`, 'error');
+      }
+      finally { btn.disabled = false; btn.textContent = 'Demo 60s'; }
+    }
+
+    async function discover() {
+      const btn = $('btn-disc');
+      const list = $('sug-list');
+      btn.disabled = true;
+      btn.textContent = 'Buscando...';
+      list.innerHTML = '';
+      log('Iniciando descubrimiento de fuentes...', 'warn');
+      try {
+        const r = await fetch('/api/discover-sources', { method: 'POST' });
+        const d = await r.json();
+        log(d.success ? 'Descubrimiento completado' : `Error: ${d.error}`, d.success ? 'success' : 'error');
+        const r2 = await fetch('/api/suggested-urls');
+        const d2 = await r2.json();
+        if (d2.success && d2.urls.length) {
+          d2.urls.forEach(u => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.innerHTML = `<span class="suggestion-url">${u.url}</span> <button class="btn" style="padding:6px 12px; font-size:0.75rem" onclick="addSug('${u.url.replace(/'/g, "\\'")}')">Añadir</button>`;
+            list.appendChild(item);
+          });
+          log(`${d2.urls.length} sugerencias encontradas`, 'success');
+        } else {
+          list.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:16px">No se encontraron sugerencias.</div>';
+          log('No se encontraron nuevas fuentes', 'info');
+        }
+      } catch(e) { log('Error en descubrimiento', 'error'); }
+      finally { btn.disabled = false; btn.textContent = 'Buscar Nuevas Fuentes'; }
+    }
+
+    async function addSug(url) {
+      $('url-in').value = url;
+      $('url-in').focus();
+      log(`URL cargada desde sugerencias: ${url}`, 'info');
+    }
+
+    async function checkVolumeGen() {
+      const kw = $('gen-tema').value;
+      if (!kw) return;
+      const el = $('gen-vol-res');
+      el.className = 'feedback info';
+      el.textContent = 'Consultando...';
+      try {
+        const r = await fetch(`/api/check-volume?keyword=${encodeURIComponent(kw)}`);
+        const d = await r.json();
+        if (d.success) {
+          el.className = 'feedback ok';
+          el.textContent = `${d.count} artículos disponibles para "${kw}"`;
+        } else {
+          el.className = 'feedback err';
+          el.textContent = 'Error al consultar';
+        }
+      } catch (e) { el.className = 'feedback err'; el.textContent = 'Error de conexión'; }
+    }
+
+    function playClick() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 800; gain.gain.value = 0.15;
+        osc.start(); osc.stop(ctx.currentTime + 0.08);
+      } catch(e) {}
+    }
+
+    async function generarStream() {
+      const btn = $('btn-gen');
+      btn.disabled = true;
+      const tema = $('gen-tema').value.trim();
+      const persona = $('gen-persona').value;
+      log(`--- INICIANDO GENERACIÓN DE ARTÍCULO (${persona})${tema ? ' — Tema: ' + tema : ''} ---`, 'warn');
+      let exito = false;
+      try {
+        const res = await fetch('/api/stream/generar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tema, persona })
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullOutput = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value);
+          fullOutput += text;
+          text.split('\n').forEach(l => {
+            if (!l) return;
+            if (l.includes('[ERROR]')) {
+              log(l, 'error');
+            } else if (l.match(/^  \[\d+s\]/)) {
+              log(l.trim(), 'info');
+            } else if (l.match(/^  Generaci.n/)) {
+              log(l.trim(), 'success');
+            } else if (l.trim() == '[OK]') {
+              if (!exito) log('Artículo generado correctamente', 'success');
+            }
+          });
+        }
+        exito = fullOutput.includes('[OK]');
+
+        if (exito) {
+          playClick();
+          const modal = $('modal-art');
+          const body = $('art-body');
+          const check = $('check-list');
+          const comm = $('eval-comms');
+          modal.classList.add('open');
+          body.innerHTML = 'Cargando artículo...';
+          check.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Evaluando...</div>';
+          comm.textContent = '';
+
+          try {
+            const r = await fetch('/api/ultimo-articulo');
+            const d = await r.json();
+            if (!d.success) { body.innerHTML = '<p style="color:var(--text-muted)">Artículo generado pero no encontrado.</p>'; return; }
+            body.innerHTML = marked.parse(d.articulo.contenido);
+            const evR = await fetch('/api/evaluate-article', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ articulo: d.articulo.contenido })
+            });
+            const evD = await evR.json();
+            if (evD.success) {
+              check.innerHTML = '';
+              Object.entries(evD.evaluation.lineamientos || evD.evaluation).forEach(([k, v]) => {
+                const item = document.createElement('div');
+                item.className = `check-item ${v ? 'ok' : 'fail'}`;
+                item.innerHTML = `<div class="check-dot"></div> ${k.replace(/_/g, ' ')}`;
+                check.appendChild(item);
+              });
+              if (evD.evaluation.comentarios) comm.textContent = evD.evaluation.comentarios;
+            } else {
+              check.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Evaluación no disponible</div>';
+            }
+          } catch (e) {
+            body.innerHTML = '<p style="color:var(--text-muted)">Error al cargar el artículo.</p>';
+            check.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Error en evaluación</div>';
+          }
+        } else {
+          log('--- NO SE PUDO GENERAR ARTÍCULO NUEVO ---', 'warn');
+          log('Revise la consola: puede que el contenido ya exista o no haya suficientes fuentes.', 'warn');
+        }
+      } catch (e) {
+        log('Error en generación: ' + e.message, 'error');
+      }
+      finally { btn.disabled = false; updateStats(); }
+    }
+
+    async function verUltimo() {
       const modal = $('modal-art');
       const body = $('art-body');
       const check = $('check-list');
       const comm = $('eval-comms');
       modal.classList.add('open');
-      body.innerHTML = 'Cargando articulo...';
-      check.innerHTML = '<div style="color:#555;font-size:0.7rem;">Evaluando...</div>';
+      body.innerHTML = 'Cargando...';
+      check.innerHTML = '';
       comm.textContent = '';
-
       try {
         const r = await fetch('/api/ultimo-articulo');
         const d = await r.json();
-        if (!d.success) { body.innerHTML = '<p style="color:#666">Articulo generado pero no encontrado.</p>'; return; }
+        if (!d.success) { body.innerHTML = '<p style="color:var(--text-muted)">Todavía no hay artículos generados.</p>'; return; }
         body.innerHTML = marked.parse(d.articulo.contenido);
         const evR = await fetch('/api/evaluate-article', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ articulo: d.articulo.contenido })
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({articulo: d.articulo.contenido})
         });
         const evD = await evR.json();
         if (evD.success) {
-          check.innerHTML = '';
           Object.entries(evD.evaluation.lineamientos || evD.evaluation).forEach(([k, v]) => {
             const item = document.createElement('div');
             item.className = `check-item ${v ? 'ok' : 'fail'}`;
-            item.innerHTML = `<div class="dot"></div> ${k.replace(/_/g, ' ')}`;
+            item.innerHTML = `<div class="check-dot"></div> ${k.replace(/_/g, ' ')}`;
             check.appendChild(item);
           });
           if (evD.evaluation.comentarios) comm.textContent = evD.evaluation.comentarios;
-        } else {
-          check.innerHTML = '<div style="color:#666;font-size:0.7rem;">Evaluacion no disponible</div>';
         }
-      } catch (e) {
-        body.innerHTML = '<p style="color:#666">Error al cargar el articulo.</p>';
-        check.innerHTML = '<div style="color:#666;font-size:0.7rem;">Error en evaluacion</div>';
-      }
-    } else {
-      log('--- NO SE PUDO GENERAR ARTICULO NUEVO ---', 'warn');
-      log('Revise la consola: puede que el contenido ya exista o no haya suficientes fuentes.', 'warn');
+      } catch(e) { body.innerHTML = '<p style="color:var(--text-muted)">Error al cargar el artículo.</p>'; }
     }
-  } catch (e) {
-    log('Error en generacion: ' + e.message, 'error');
-  }
-  finally { btn.disabled = false; updateStats(); }
-}
 
-// ── Ultimo articulo ──
-async function verUltimo() {
-  const modal = $('modal-art');
-  const body = $('art-body');
-  const check = $('check-list');
-  const comm = $('eval-comms');
-  modal.classList.add('open');
-  body.innerHTML = 'Cargando...';
-  check.innerHTML = '';
-  comm.textContent = '';
-  try {
-    const r = await fetch('/api/ultimo-articulo');
-    const d = await r.json();
-    if (!d.success) { body.innerHTML = '<p style="color:#666">Todavia no hay articulos generados.</p>'; return; }
-    body.innerHTML = marked.parse(d.articulo.contenido);
-    const evR = await fetch('/api/evaluate-article', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({articulo: d.articulo.contenido})
-    });
-    const evD = await evR.json();
-    if (evD.success) {
-      Object.entries(evD.evaluation.lineamientos || evD.evaluation).forEach(([k, v]) => {
-        const item = document.createElement('div');
-        item.className = `check-item ${v ? 'ok' : 'fail'}`;
-        item.innerHTML = `<div class="dot"></div> ${k.replace(/_/g, ' ')}`;
-        check.appendChild(item);
-      });
-      if (evD.evaluation.comentarios) comm.textContent = evD.evaluation.comentarios;
+    function cerrar() { $('modal-art').classList.remove('open'); }
+
+    function copiar() {
+      navigator.clipboard.writeText($('art-body').textContent);
+      log('Texto copiado al portapapeles', 'success');
     }
-  } catch(e) { body.innerHTML = '<p style="color:#666">Error al cargar el articulo.</p>'; }
-}
 
-function cerrar() { $('modal-art').classList.remove('open'); }
-function copiar() {
-  navigator.clipboard.writeText($('art-body').textContent);
-  log('Texto copiado al portapapeles', 'success');
-}
-
-window.onload = () => {
-  loadAuto();
-  updateStats();
-  setInterval(updateStats, 15000);
-  log('Conectado al Command Center de AfterDrive.');
-};
-</script>
+    window.onload = () => {
+      updateStats();
+      setInterval(updateStats, 15000);
+      log('Conectado al Command Center de AfterDrive.');
+    };
+  </script>
 </body>
 </html>

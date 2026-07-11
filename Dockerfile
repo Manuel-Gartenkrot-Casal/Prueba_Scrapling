@@ -16,6 +16,9 @@ RUN pip install --default-timeout=300 --no-cache-dir -r requirements.txt
 RUN playwright install --with-deps chromium && \
     python -c "from scrapling.cli import install; install([], standalone_mode=False)"
 
+# Crear usuario no-root
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 # Copiar código fuente
 COPY db.py .
 COPY lm_studio.py .
@@ -26,7 +29,14 @@ COPY scraper.py .
 COPY scheduler.py .
 COPY add_url.py .
 COPY discover_sources.py .
-COPY .env .
+
+# Cambiar propiedad y usar usuario no-root
+RUN chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+  CMD curl -f http://localhost:5000/health || exit 1
+
 CMD ["python", "flask_api.py"]

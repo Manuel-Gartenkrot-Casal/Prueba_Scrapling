@@ -1,14 +1,15 @@
-import json
 import os
 import re
 import subprocess
 import sys
-import time
 import threading
-from flask import Flask, jsonify, Response, request, stream_with_context
+import time
+
+from flask import Flask, Response, jsonify, request, stream_with_context
 from flask_cors import CORS
-from db import db, col_articulos
+
 import scheduler
+from db import col_articulos, db
 
 app = Flask(__name__)
 CORS(app)
@@ -17,10 +18,11 @@ _TIMEOUT = 1800  # 30 min (generación IA ~15-25 min en CPU)
 
 # ── Helper: ejecutar script y capturar salida completa ────────────────────────
 
+
 def run_script(script: str, extra_args: list[str] | None = None) -> dict:
     cmd = [sys.executable, script] + (extra_args or [])
-    _LM_LOG = re.compile(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]')
-    _FILTERED_ERR_LOG = re.compile(r'.*Channel Error.*', re.IGNORECASE)
+    _LM_LOG = re.compile(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]")
+    _FILTERED_ERR_LOG = re.compile(r".*Channel Error.*", re.IGNORECASE)
     try:
         result = subprocess.run(
             cmd,
@@ -28,19 +30,21 @@ def run_script(script: str, extra_args: list[str] | None = None) -> dict:
             text=True,
             timeout=_TIMEOUT,
         )
-        out_lines = [l for l in result.stdout.splitlines(True) if not _LM_LOG.match(l)]
-        err_lines = [l for l in result.stderr.splitlines(True) if not _FILTERED_ERR_LOG.match(l)]
+        out_lines = [line for line in result.stdout.splitlines(True) if not _LM_LOG.match(line)]
+        err_lines = [line for line in result.stderr.splitlines(True) if not _FILTERED_ERR_LOG.match(line)]
         return {
             "success": result.returncode == 0,
             "output": "".join(out_lines),
             "error": "".join(err_lines) if result.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "output": "", "error": "Timeout: el proceso tardó más de 15 minutos."}
+        return {"success": False, "output": "", "error": "Timeout: el proceso tardó más de 30 minutos."}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}
 
+
 # ── Helper: ejecutar script y transmitir salida línea por línea ────────────────
+
 
 def _stream_output(script: str, extra_args: list[str] | None = None):
     """Ejecuta un script y produce su stdout línea por línea en tiempo real."""
@@ -56,7 +60,7 @@ def _stream_output(script: str, extra_args: list[str] | None = None):
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
 
-        _LM_LOG = re.compile(r'^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]')
+        _LM_LOG = re.compile(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]")
         for line in process.stdout:
             if time.time() - start > _TIMEOUT:
                 process.kill()
@@ -70,25 +74,30 @@ def _stream_output(script: str, extra_args: list[str] | None = None):
     except Exception as e:
         yield f"[ERROR] {e}\n"
 
+
 # ── Endpoints de Gestión de Datos ────────────────────────────────────────────────
+
 
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
 
 @app.route("/api/check-volume", methods=["GET"])
 def check_volume():
     keyword = request.args.get("keyword", "")
     if not keyword:
         return jsonify({"success": False, "error": "Se requiere el parámetro 'keyword'."}), 400
-    
+
     try:
         count = col_articulos.count_documents({"$text": {"$search": keyword}})
         return jsonify({"success": True, "count": count})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 # ── Endpoints de Generación ───────────────────────────────────────────────────────
+
 
 @app.route("/ultimo-articulo", methods=["GET"])
 def ultimo_articulo():
@@ -96,50 +105,57 @@ def ultimo_articulo():
     doc = col_generados.find_one({}, sort=[("generado_en", -1)])
     if not doc:
         return jsonify({"success": False, "error": "Todavía no hay artículos generados."}), 404
-    return jsonify({
-        "success": True,
-        "articulo": {
-            "contenido":   doc.get("contenido", ""),
-            "tema":        doc.get("tema", ""),
-            "fuentes":     doc.get("fuentes", []),
-            "generado_en": doc.get("generado_en", ""),
-            "docs_usados": doc.get("docs_usados", []),
+    return jsonify(
+        {
+            "success": True,
+            "articulo": {
+                "contenido": doc.get("contenido", ""),
+                "tema": doc.get("tema", ""),
+                "fuentes": doc.get("fuentes", []),
+                "generado_en": doc.get("generado_en", ""),
+                "docs_usados": doc.get("docs_usados", []),
+            },
         }
-    })
+    )
+
+
+def _parse_request_args(body: dict) -> list[str]:
+    """Extrae argumentos de tema/persona del request body."""
+    args_list = []
+    tema = body.get("tema", "").strip()
+    persona = body.get("persona", "").strip()
+    if tema:
+        args_list.extend(["--tema", tema])
+    if persona and persona in ("analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"):
+        args_list.extend(["--persona", persona])
+    return args_list
+
 
 @app.route("/generar", methods=["POST"])
 def generar():
     body = request.get_json(silent=True) or {}
-    args_list = []
-    tema = body.get("tema", "").strip()
-    persona = body.get("persona", "").strip()
-    if tema:
-        args_list.extend(["--tema", tema])
-    if persona and persona in ("analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"):
-        args_list.extend(["--persona", persona])
+    args_list = _parse_request_args(body)
     result = run_script("generar_articulo.py", args_list)
     status = 200 if result["success"] else 500
     return jsonify(result), status
 
+
 # ── Endpoints streaming (SSE) ─────────────────────────────────────────────────
+
 
 @app.route("/stream/generar", methods=["POST"])
 def stream_generar():
     body = request.get_json(silent=True) or {}
-    args_list = []
-    tema = body.get("tema", "").strip()
-    persona = body.get("persona", "").strip()
-    if tema:
-        args_list.extend(["--tema", tema])
-    if persona and persona in ("analitico", "periodistico", "comercial", "divulgativo", "ejecutivo"):
-        args_list.extend(["--persona", persona])
+    args_list = _parse_request_args(body)
     return Response(
         stream_with_context(_stream_output("generar_articulo.py", args_list)),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+
 # ── Endpoints para URLs Custom (Nuevas) ──────────────────────────────────────────
+
 
 @app.route("/api/scraping-config", methods=["GET"])
 def get_scraping_config():
@@ -147,23 +163,21 @@ def get_scraping_config():
     # Intentamos obtener el intervalo actual del job
     job = scheduler.scheduler.get_job("trusted_scraping")
     interval = job.trigger.interval.days if job else 1
-    
-    return jsonify({
-        "success": True,
-        "interval_days": interval,
-        "next_execution": next_run
-    })
+
+    return jsonify({"success": True, "interval_days": interval, "next_execution": next_run})
+
 
 @app.route("/api/scraping-config", methods=["POST"])
 def set_scraping_config():
     body = request.get_json(silent=True) or {}
     days = body.get("interval_days")
-    
+
     if days is None or not isinstance(days, int) or days < 1:
         return jsonify({"success": False, "error": "Se requiere 'interval_days' como un entero >= 1."}), 400
-    
+
     scheduler.update_scheduler_interval(days)
     return jsonify({"success": True, "message": f"Intervalo actualizado a {days} día(s)."})
+
 
 @app.route("/api/run-automation", methods=["POST"])
 def run_automation():
@@ -174,6 +188,7 @@ def run_automation():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @app.route("/api/stream/run-automation", methods=["POST"])
 def stream_run_automation():
     """Streaming SSE con el output en vivo del scraping de URLs confiables."""
@@ -183,24 +198,25 @@ def stream_run_automation():
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+
 @app.route("/api/trusted-urls-stats", methods=["GET"])
 def trusted_urls_stats():
     """Estadísticas de las URLs confiables y última ejecución."""
     try:
         total = db["trusted_urls"].count_documents({})
         activas = db["trusted_urls"].count_documents({"estado": "activo"})
-        ultima = db["trusted_urls"].find_one(
-            {"ultima_ejecucion": {"$exists": True}},
-            sort=[("ultima_ejecucion", -1)]
+        ultima = db["trusted_urls"].find_one({"ultima_ejecucion": {"$exists": True}}, sort=[("ultima_ejecucion", -1)])
+        return jsonify(
+            {
+                "success": True,
+                "total": total,
+                "activas": activas,
+                "ultima_ejecucion": ultima.get("ultima_ejecucion") if ultima else None,
+            }
         )
-        return jsonify({
-            "success": True,
-            "total": total,
-            "activas": activas,
-            "ultima_ejecucion": ultima.get("ultima_ejecucion") if ultima else None
-        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route("/api/evaluate-article", methods=["POST"])
 def evaluate_article():
@@ -208,21 +224,22 @@ def evaluate_article():
     articulo = body.get("articulo", "")
     if not articulo:
         return jsonify({"success": False, "error": "Se requiere el contenido del artículo."}), 400
-    
+
     # Si el articulo tiene wrapper JSON (ej: "articulo": "markdown..."), limpiarlo
-    import re as _re
-    m = _re.search(r'"articulo"\s*:\s*"(.+)"\s*}', articulo, _re.DOTALL)
+    m = re.search(r'"articulo"\s*:\s*"(.+)"\s*}', articulo, re.DOTALL)
     if m:
-        articulo = m.group(1).replace('\\n', '\n').replace('\\"', '"').strip()
+        articulo = m.group(1).replace("\\n", "\n").replace('\\"', '"').strip()
     articulo = articulo.lstrip("`").lstrip("markdown").strip()
-    
+
     from lm_studio import evaluar_lineamientos
+
     resultado = evaluar_lineamientos(articulo)
-    
+
     if "error" in resultado:
         return jsonify({"success": False, "error": resultado["error"]}), 500
-    
+
     return jsonify({"success": True, "evaluation": resultado})
+
 
 @app.route("/api/suggested-urls", methods=["GET"])
 def suggested_urls():
@@ -234,11 +251,13 @@ def suggested_urls():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @app.route("/api/discover-sources", methods=["POST"])
 def discover_sources():
     result = run_script("discover_sources.py")
     status = 200 if result["success"] else 500
     return jsonify(result), status
+
 
 @app.route("/api/add-url", methods=["POST"])
 def add_url():
@@ -246,11 +265,12 @@ def add_url():
     url = body.get("url", "")
     if not url:
         return jsonify({"success": False, "error": "Se requiere la URL."}), 400
-    
+
     # Ejecutamos el nuevo script add_url.py
     result = run_script("add_url.py", [url])
     status = 200 if result["success"] else 500
     return jsonify(result), status
+
 
 @app.route("/stream/add-url", methods=["POST"])
 def stream_add_url():
@@ -258,19 +278,29 @@ def stream_add_url():
     url = body.get("url", "")
     if not url:
         return jsonify({"success": False, "error": "Se requiere la URL."}), 400
-    
+
     return Response(
         stream_with_context(_stream_output("add_url.py", [url])),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+
+# ── Endpoint de Demo ─────────────────────────────────────────────────────────
+
+
+@app.route("/api/stream/demo", methods=["POST"])
+def stream_demo():
+    """Streaming SSE del pipeline completo en modo demo (<60s)."""
+    return Response(
+        stream_with_context(_stream_output("demo_mode.py")),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 if __name__ == "__main__":
     # Iniciar el scheduler de scraping automático
     scheduler.start_scheduler()
-    
-    app.run(host="0.0.0.0", port=5000, threaded=True)
 
-
-if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, threaded=True)
