@@ -256,14 +256,25 @@ _DISPONIBLE = True
 # ── Helpers internos ───────────────────────────────────────────────────────────
 
 
+def _mensajes(system_prompt: str | None, user_content: str) -> list[dict]:
+    """
+    Arma la lista de messages fusionando el system prompt dentro del mensaje user.
+
+    El template de chat de mistral-instruct-v0.3 NO soporta el rol "system"
+    (LM Studio tira: 'Only user and assistant roles are supported!'), así que
+    las instrucciones van al principio del mensaje del usuario. Funciona igual
+    de bien y es compatible con cualquier modelo.
+    """
+    if system_prompt:
+        return [{"role": "user", "content": f"{system_prompt}\n\n---\n\n{user_content}"}]
+    return [{"role": "user", "content": user_content}]
+
+
 def _call_lm(
     mensaje_usuario: str, temperature: float = 0.1, max_tokens: int = 2048, system_prompt: str | None = None
 ) -> str:
     """Envía un mensaje sin streaming y devuelve el texto completo."""
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": mensaje_usuario})
+    messages = _mensajes(system_prompt, mensaje_usuario)
     payload = {
         "model": MODELO,
         "messages": messages,
@@ -376,10 +387,7 @@ def evaluar_lineamientos(articulo: str) -> dict:
 
     payload = {
         "model": MODELO,
-        "messages": [
-            {"role": "system", "content": _SYSTEM_EVALUAR_CONTENIDO},
-            {"role": "user", "content": f"Analizá el siguiente artículo:\n\n{articulo}"},
-        ],
+        "messages": _mensajes(_SYSTEM_EVALUAR_CONTENIDO, f"Analizá el siguiente artículo:\n\n{articulo}"),
         "temperature": 0.1,
         "max_tokens": 1024,
         "stream": False,
@@ -439,10 +447,7 @@ def generar_articulo(contexto: str, research: str = "", persona: str = "analitic
 
     payload = {
         "model": MODELO,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": mensaje},
-        ],
+        "messages": _mensajes(system_prompt, mensaje),
         "temperature": 0.7,
         "max_tokens": 4000,
         "stream": True,
@@ -703,10 +708,7 @@ def extraer_temas(articulos: list[dict]) -> list[str]:
 
     payload = {
         "model": MODELO,
-        "messages": [
-            {"role": "system", "content": PROMPT_TEMAS},
-            {"role": "user", "content": texto},
-        ],
+        "messages": _mensajes(PROMPT_TEMAS, texto),
         "temperature": 0.3,
         "max_tokens": 512,
         "stream": False,
@@ -752,10 +754,7 @@ def research_contexto(contexto: str) -> str:
 
     payload = {
         "model": MODELO,
-        "messages": [
-            {"role": "system", "content": PROMPT_RESEARCH},
-            {"role": "user", "content": contexto},
-        ],
+        "messages": _mensajes(PROMPT_RESEARCH, contexto),
         "temperature": 0.1,
         "max_tokens": 1024,
         "stream": False,

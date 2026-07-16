@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --default-timeout=300 --no-cache-dir -r requirements.txt
 
-# Instalar Chromium con sus dependencias de sistema (vía Playwright)
-# y luego los browsers adicionales de Scrapling (camoufox)
-RUN playwright install --with-deps chromium && \
+# Scrapling (StealthyFetcher) usa patchright (Chromium). Instalamos ESE navegador
+# en una ruta compartida (/ms-playwright) para que el usuario no-root lo encuentre
+# en runtime — si no, el browser queda en el cache de root y appuser no lo ve.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN python -m patchright install --with-deps chromium && \
     python -c "from scrapling.cli import install; install([], standalone_mode=False)"
 
 # Crear usuario no-root

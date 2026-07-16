@@ -7,6 +7,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - LMSTUDIO_URL=http://host.docker.internal:1234/v1
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL:-mistral-7b-instruct-v0.3}
+      - LMSTUDIO_EMB_MODEL=${LMSTUDIO_EMB_MODEL:-text-embedding-nomic-embed-text-v1.5}
       - MONGO_URI=${MONGO_URI}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -24,6 +26,7 @@ services:
       - ./add_url.py:/app/add_url.py
       - ./discover_sources.py:/app/discover_sources.py
       - ./run_automation.py:/app/run_automation.py
+      - ./demo_mode.py:/app/demo_mode.py
     networks:
       - app
     healthcheck:
