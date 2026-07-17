@@ -281,46 +281,43 @@ OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 15
 Eres un divulgador tecnico especializado en autopartes, e-commerce B2B y mecanica automotriz en Latinoamerica.
 
 ## Tu tarea
-Explicar conceptos tecnicos y de negocio del sector aftermarket de forma simple y didactica.
+Explicar un concepto tecnico o de negocio del sector aftermarket de forma simple y didactica. El articulo DEBE girar en torno a UN solo concepto especifico (ej: "catalogacion digital de neumaticos", "fitment por año/motor", "integracion ERP-marketplace"). PROHIBIDO escribir sobre "la tecnologia" en general o sobre multiples temas a la vez.
 
 ## Contexto del sector
 Tu audiencia son: repuesteros, distribuidores, gerentes de e-commerce automotor.
 Ellos necesitan: entender como funcionan las plataformas, catalogacion digital, indexacion de productos.
-Plataformas clave: Alephee (e-commerce B2B), Mercado Libre (marketplace), TecDoc (catalogo de referencias cruzadas), catalogacion digital.
+Plataformas clave: Alephee (e-commerce B2B), Mercado Libre (marketplace), TecDoc (catalogo de referencias cruzadas).
 
 ## Estructura obligatoria (cuatro secciones ## en Markdown)
-1. **Concepto con analogia** - Introduce el tema con una comparacion concreta del mundo real
-2. **Como funciona** - Explicacion paso a paso del concepto o plataforma
-3. **Impacto practico** - En el taller, distribuidor o repuestero
-4. **Resumen + CTA** - Maximo 3 viñetas con ideas NUEVAS + llamada a la accion
+1. **Titulo con concordancia perfecta** - Titulo claro, sin errores gramaticales. Usa palabras exactas del sector. PROHIBIDO: "Esta cambiando la juego", "La tecnologia esta revolucionando", frases genericas sin sustantivo tecnico concreto.
+2. **Concepto con analogia concreta** - Introduce el tema con una comparacion del mundo real que NO sea obvia. Ejemplo: "Un catalogo digital es como un vendedor que nunca se enferma". PROHIBIDO comparar con "la era digital" o "el mundo connected".
+3. **Como funciona en la practica** - Explicacion paso a paso del concepto, producto o plataforma. Usa datos DEL CONTEXTO: nombres de empresas, codigos de producto, precios, porcentajes reales. Si el contexto no dice un dato, NO lo inventes.
+4. **Impacto medible** - Resultados concretos en el taller, distribuidor o repuestero. USA SOLO datos del contexto. Si no hay datos de impacto, describe el proceso sin inventar estadisticas.
+5. **Resumen** - Maximo 3 viñetas. Cada viñeta debe aportar una idea NUEVA que NO aparezca en el cuerpo del articulo. PROHIBIDO repetir los puntos de "Impacto medible".
 
-## Ejemplo:
-## Que es un Catalogo Digital y Por Que Importa para tu Negocio
+## REGLAS CRITICAS PARA ESTE MODO
+- CADA SECCION debe contener informacion UNICA. Si una viñeta o frase ya aparecio antes, ELIMINALA.
+- NUNCA repitas una misma idea con palabras diferentes en secciones distintas.
+- CTA: Solo UNA llamada a la accion al final del articulo. PROHIBIDO meter CTA como subtitulo o separador entre secciones.
+- El titulo DEBE ser gramaticalmente correcto en espanol. No uses gerundios mal conjugados ni anglicismos.
+- Si el contexto menciona un producto especifico (ej: "electroventilador VW Golf"), USA ESE producto en los ejemplos. NO hables de "repuestos genericos".
+- PROFUNDIDAD MINIMA: Cada seccion ## debe tener al menos 3 oraciones con datos especificos del contexto. No se acepta una sola viñeta vacia.
 
-Un catalogo digital es como una vitrina virtual donde tu stock completo esta disponible 24/7 para tus clientes. Para el distribuidor de autopartes, esto significa que cada repuesto que tenes en el deposito puede ser encontrado y vendido sin que tu equipo tenga que buscar manualmente.
+## Ejemplo de titulo BIEN escrito:
+"Fitment de Repuestos: Como el Codigo de Motor y Ano Eliminan Devoluciones en E-commerce"
 
-## Como Funciona
-
-La plataforma Alephee, por ejemplo, permite a los distribuidores sincronizar su catalogo con Mercado Libre, mostrando solo los productos que tienen stock disponible. Cuando un taller busca un electroventilador para VW Gol, el sistema automaticamente muestra las opciones compatibles con el motor y año del vehiculo.
-
-## Impacto Practico
-
-- Reduccion de devoluciones por envio de repuesto incorrecto
-- Aumento de ventas por visibilidad en marketplaces
-- Ahorro de tiempo en busquedas manuales de compatibilidad
-
-*Descubre como un catalogo digital puede transformar tu negocio de repuestos*
+## Ejemplo de titulo MAL escrito (PROHIBIDO):
+"Como la Tecnologia esta Cambiando el Juego en los Repuestos"
 
 ## Estilo
 - Tono: didactico, simple, analogias del mundo real
 - Usa "aftermarket" directamente (NO "repuestos despues de mercado")
 - Menciona plataformas reales del contexto
-- Resumen: maximo 3 viñetas, cada una con idea NUEVA, sin repetir el cuerpo
 - NUNCA inventes conceptos tecnicos que no existen.
 - TERMINOLOGIA EXACTA: neumaticos/cubiertas (goma), llantas (aleacion). NUNCA mezcles.
 - Sin repeticiones en conclusiones.
 
-OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 155 chars, sin etiqueta) + CTA. Sin meta description = articulo invalido.
+OBLIGATORIO: El articulo DEBE terminar con meta description en *cursiva* (max 155 chars, sin etiqueta) + UN SOLO CTA. Sin meta description = articulo invalido.
 
 {_REGLAS_UNIVERSALES}""",
     "ejecutivo": f"""\
@@ -709,7 +706,6 @@ def _post_procesar_articulo(texto: str) -> str:
         if ultima_no_vacia:
             conteo = sum(1 for ln in lineas if ln.strip() == ultima_no_vacia)
             if conteo >= 2:
-                # Mantener solo la primera ocurrencia
                 nueva_lineas = []
                 primera_encontrada = False
                 for ln in lineas:
@@ -721,10 +717,9 @@ def _post_procesar_articulo(texto: str) -> str:
                 lineas = nueva_lineas
 
     # 2. Eliminar oraciones repetidas dentro de un mismo parrafo
-    resultado_final = []
+    resultado_intermedio = []
     for ln in lineas:
         stripped = ln.strip()
-        # Si la linea es muy larga, buscar oraciones duplicadas
         if len(stripped) > 80 and stripped.count(".") >= 2:
             oraciones = [o.strip() for o in stripped.split(".") if o.strip()]
             vistas = set()
@@ -735,11 +730,69 @@ def _post_procesar_articulo(texto: str) -> str:
                     vistas.add(normalizada)
                     oraciones_unicas.append(o)
             if len(oraciones_unicas) < len(oraciones):
-                resultado_final.append(". ".join(oraciones_unicas) + ".")
+                resultado_intermedio.append(". ".join(oraciones_unicas) + ".")
                 continue
-        resultado_final.append(ln)
+        resultado_intermedio.append(ln)
 
-    return "\n".join(resultado_final)
+    # 3. Detectar y eliminar secciones duplicadas (mismo contenido en dos bloques ##)
+    bloques = []
+    bloque_actual = {"titulo": "", "lineas": []}
+    for ln in resultado_intermedio:
+        if ln.strip().startswith("## "):
+            if bloque_actual["lineas"]:
+                bloques.append(bloque_actual)
+            bloque_actual = {"titulo": ln.strip(), "lineas": []}
+        else:
+            bloque_actual["lineas"].append(ln)
+    if bloque_actual["lineas"] or bloque_actual["titulo"]:
+        bloques.append(bloque_actual)
+
+    if len(bloques) >= 2:
+        bloques_unicos = [bloques[0]]
+        for b in bloques[1:]:
+            texto_b = re.sub(r'\s+', ' ', " ".join(b["lineas"]).lower().strip())
+            duplicado = False
+            for existente in bloques_unicos:
+                texto_existente = re.sub(r'\s+', ' ', " ".join(existente["lineas"]).lower().strip())
+                if texto_b and texto_existente:
+                    palabras_b = set(texto_b.split())
+                    palabras_existente = set(texto_existente.split())
+                    if len(palabras_b) > 10 and len(palabras_existente) > 10:
+                        interseccion = len(palabras_b & palabras_existente)
+                        union = len(palabras_b | palabras_existente)
+                        if union > 0 and interseccion / union > 0.6:
+                            duplicado = True
+                            break
+            if not duplicado:
+                bloques_unicos.append(b)
+
+        if len(bloques_unicos) < len(bloques):
+            resultado_final = []
+            for b in bloques_unicos:
+                if b["titulo"]:
+                    resultado_final.append(b["titulo"])
+                resultado_final.extend(b["lineas"])
+            lineas = resultado_final
+        else:
+            lineas = resultado_intermedio
+    else:
+        lineas = resultado_intermedio
+
+    # 4. Eliminar CTA repetido (misma frase "Descubre" o "Conoce" aparece 2+ veces)
+    patron_cta = re.compile(r'(descubre|conoce|transforma|descarga|accede|visita)\b', re.IGNORECASE)
+    cta_count = sum(1 for ln in lineas if patron_cta.search(ln) and not ln.strip().startswith("#"))
+    if cta_count >= 2:
+        primera_cta_encontrada = False
+        nuevas_lineas = []
+        for ln in lineas:
+            if patron_cta.search(ln) and not ln.strip().startswith("#"):
+                if primera_cta_encontrada:
+                    continue
+                primera_cta_encontrada = True
+            nuevas_lineas.append(ln)
+        lineas = nuevas_lineas
+
+    return "\n".join(lineas)
 
 
 def generar_articulo(contexto: str, research: str = "", persona: str = "analitico", tema: str = "") -> str:

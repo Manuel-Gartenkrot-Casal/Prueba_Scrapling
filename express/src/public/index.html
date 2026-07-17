@@ -1105,12 +1105,293 @@
       animation: scanline 2s linear infinite;
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       BUTTON RIPPLE EFFECT
+       ═══════════════════════════════════════════════════════════════════════ */
+    .btn-ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(232,99,126,0.3);
+      transform: scale(0);
+      animation: rippleExpand 0.6s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes rippleExpand {
+      to { transform: scale(4); opacity: 0; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CARD HOVER GLOW
+       ═══════════════════════════════════════════════════════════════════════ */
+    .card {
+      transition: all var(--t-med) var(--ease-out), box-shadow var(--t-slow) var(--ease-out);
+    }
+
+    .card:hover {
+      box-shadow: 0 0 30px rgba(232,99,126,0.08), 0 8px 32px rgba(0,0,0,0.3);
+      transform: translateY(-2px);
+    }
+
+    .stat-card {
+      transition: all var(--t-med) var(--ease-out), transform var(--t-slow) var(--ease-out);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-3px) scale(1.01);
+      box-shadow: 0 0 24px rgba(232,99,126,0.12), 0 12px 40px rgba(0,0,0,0.25);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       FLOATING PARTICLES
+       ═══════════════════════════════════════════════════════════════════════ */
+    .particles-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: var(--brand);
+      border-radius: 50%;
+      opacity: 0;
+      animation: particleFloat linear infinite;
+    }
+
+    @keyframes particleFloat {
+      0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+      10% { opacity: 0.4; }
+      90% { opacity: 0.4; }
+      100% { transform: translateY(-20px) translateX(var(--drift, 30px)); opacity: 0; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TOAST NOTIFICATIONS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .toast-container {
+      position: fixed;
+      top: var(--s5);
+      right: var(--s5);
+      z-index: var(--z-toast);
+      display: flex;
+      flex-direction: column;
+      gap: var(--s3);
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--surface-panel);
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-md);
+      padding: 12px 18px;
+      font-size: 0.8125rem;
+      color: var(--text-hi);
+      box-shadow: var(--e2);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      pointer-events: auto;
+      animation: toastIn 0.4s var(--ease-out) forwards;
+      max-width: 360px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toast.toast-exit {
+      animation: toastOut 0.3s var(--ease-out) forwards;
+    }
+
+    .toast-icon {
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .toast.toast-success { border-left: 3px solid var(--ok); }
+    .toast.toast-error { border-left: 3px solid var(--err); }
+    .toast.toast-info { border-left: 3px solid var(--info); }
+    .toast.toast-warn { border-left: 3px solid var(--warn); }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(40px) scale(0.95); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(40px) scale(0.95); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LOADING SPINNER
+       ═══════════════════════════════════════════════════════════════════════ */
+    .btn.loading {
+      pointer-events: none;
+      position: relative;
+    }
+
+    .btn.loading::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      right: 12px;
+      top: 50%;
+      margin-top: -8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       GRADIENT BORDER ANIMATION ON CARDS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: var(--r-lg);
+      padding: 1px;
+      background: linear-gradient(135deg, transparent 40%, var(--brand) 50%, transparent 60%);
+      background-size: 300% 300%;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: 0;
+      transition: opacity var(--t-med) var(--ease-out);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .card:hover::after {
+      opacity: 1;
+      animation: borderGlow 3s ease infinite;
+    }
+
+    @keyframes borderGlow {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SMOOTH VALUE TRANSITION
+       ═══════════════════════════════════════════════════════════════════════ */
+    .stat-value {
+      transition: all 0.4s var(--ease-out);
+    }
+
+    .stat-value.updated {
+      animation: valuePop 0.4s var(--ease-out);
+    }
+
+    @keyframes valuePop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); color: var(--brand); }
+      100% { transform: scale(1); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CHECK ITEM ANIMATION
+       ═══════════════════════════════════════════════════════════════════════ */
+    .check-item {
+      opacity: 0;
+      transform: translateX(-8px);
+      animation: checkSlide 0.3s var(--ease-out) forwards;
+    }
+
+    .check-item:nth-child(1) { animation-delay: 50ms; }
+    .check-item:nth-child(2) { animation-delay: 100ms; }
+    .check-item:nth-child(3) { animation-delay: 150ms; }
+    .check-item:nth-child(4) { animation-delay: 200ms; }
+    .check-item:nth-child(5) { animation-delay: 250ms; }
+    .check-item:nth-child(6) { animation-delay: 300ms; }
+    .check-item:nth-child(7) { animation-delay: 350ms; }
+    .check-item:nth-child(8) { animation-delay: 400ms; }
+    .check-item:nth-child(9) { animation-delay: 450ms; }
+
+    @keyframes checkSlide {
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TOPIC CHIP HOVER EFFECT
+       ═══════════════════════════════════════════════════════════════════════ */
+    .topic-chip {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .topic-chip::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--brand-glow) 0%, transparent 100%);
+      opacity: 0;
+      transition: opacity var(--t-fast);
+    }
+
+    .topic-chip:hover::before {
+      opacity: 1;
+    }
+
+    .topic-chip:active {
+      transform: scale(0.95);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CONSOLE ENTRANCE
+       ═══════════════════════════════════════════════════════════════════════ */
+    .console-section {
+      animation: consoleAppear 0.6s var(--ease-out) 0.5s both;
+    }
+
+    @keyframes consoleAppear {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SUGGESTION ITEM ENTRANCE
+       ═══════════════════════════════════════════════════════════════════════ */
+    .suggestion-item {
+      animation: suggestIn 0.3s var(--ease-out) both;
+    }
+
+    .suggestion-item:nth-child(1) { animation-delay: 0ms; }
+    .suggestion-item:nth-child(2) { animation-delay: 40ms; }
+    .suggestion-item:nth-child(3) { animation-delay: 80ms; }
+    .suggestion-item:nth-child(4) { animation-delay: 120ms; }
+    .suggestion-item:nth-child(5) { animation-delay: 160ms; }
+
+    @keyframes suggestIn {
+      from { opacity: 0; transform: translateX(-12px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       THEME TRANSITION SMOOTH
+       ═══════════════════════════════════════════════════════════════════════ */
+    [data-theme] {
+      transition: background-color 0.5s var(--ease-out), color 0.3s var(--ease-out);
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
       }
+      .particle { display: none; }
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
@@ -1141,6 +1422,7 @@
   </style>
 </head>
 <body>
+  <div class="particles-canvas"></div>
   <div class="app-container">
     <!-- Header -->
     <header class="header" id="appHeader">
@@ -1393,6 +1675,85 @@
 
     function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       PARTICLES BACKGROUND
+       ═══════════════════════════════════════════════════════════════════════ */
+    function initParticles() {
+      var canvas = document.querySelector('.particles-canvas');
+      if (!canvas) return;
+      var count = window.innerWidth < 768 ? 10 : 20;
+      for (var i = 0; i < count; i++) {
+        var p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = (Math.random() * 100) + '%';
+        p.style.animationDuration = (8 + Math.random() * 12) + 's';
+        p.style.animationDelay = (Math.random() * 10) + 's';
+        p.style.setProperty('--drift', (Math.random() * 60 - 30) + 'px');
+        var size = 1 + Math.random() * 2;
+        p.style.width = size + 'px';
+        p.style.height = size + 'px';
+        canvas.appendChild(p);
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BUTTON RIPPLE EFFECT
+       ═══════════════════════════════════════════════════════════════════════ */
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.btn');
+      if (!btn || btn.disabled) return;
+      var rect = btn.getBoundingClientRect();
+      var ripple = document.createElement('span');
+      ripple.className = 'btn-ripple';
+      var size = Math.max(rect.width, rect.height);
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      btn.style.position = btn.style.position || 'relative';
+      btn.style.overflow = 'hidden';
+      btn.appendChild(ripple);
+      setTimeout(function() { ripple.remove(); }, 650);
+    });
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TOAST NOTIFICATIONS
+       ═══════════════════════════════════════════════════════════════════════ */
+    var _toastContainer = null;
+    function showToast(msg, type, duration) {
+      type = type || 'info';
+      duration = duration || 4000;
+      if (!_toastContainer) {
+        _toastContainer = document.createElement('div');
+        _toastContainer.className = 'toast-container';
+        document.body.appendChild(_toastContainer);
+      }
+      var icons = { success: '\u2713', error: '\u2717', warn: '\u26A0', info: '\u2139' };
+      var toast = document.createElement('div');
+      toast.className = 'toast toast-' + type;
+      toast.innerHTML = '<span class="toast-icon">' + (icons[type] || icons.info) + '</span><span>' + escHtml(msg) + '</span>';
+      _toastContainer.appendChild(toast);
+      setTimeout(function() {
+        toast.classList.add('toast-exit');
+        setTimeout(function() { toast.remove(); }, 300);
+      }, duration);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BUTTON LOADING STATE
+       ═══════════════════════════════════════════════════════════════════════ */
+    function setBtnLoading(btn, loading) {
+      if (!btn) return;
+      if (loading) {
+        btn.dataset.origText = btn.innerHTML;
+        btn.classList.add('loading');
+        btn.disabled = true;
+      } else {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        if (btn.dataset.origText) btn.innerHTML = btn.dataset.origText;
+      }
+    }
+
     function limpiarLogs() {
       $('logs').innerHTML = '';
       log('Logs limpiados.');
@@ -1624,6 +1985,7 @@
           el.textContent = 'URL agregada correctamente';
           $('url-in').value = '';
           log('URL agregada: ' + url, 'success');
+          showToast('URL agregada correctamente', 'success');
           updateStats();
         } else {
           el.className = 'feedback err';
@@ -1647,6 +2009,7 @@
           body: JSON.stringify({interval_days: days, max_articulos: maxArt})
         });
         log('Configuracion guardada: ' + days + ' dia(s), ' + maxArt + ' articulos/fuente', 'success');
+        showToast('Configuracion guardada', 'success');
         updateStats();
       } catch(e) { log('Error al guardar configuracion', 'error'); }
     }
@@ -1678,6 +2041,7 @@
         log('--- SCRAPING FINALIZADO ---', 'success');
         finishPipeline(true);
         log('Scraping completado exitosamente.', 'success');
+        showToast('Scraping completado', 'success');
         hidePipelineHeader();
         updateStats();
       } catch(e) {
@@ -1761,6 +2125,7 @@
             list.appendChild(item);
           });
           log(d2.urls.length + ' sugerencias encontradas', 'success');
+          showToast(d2.urls.length + ' fuentes encontradas', 'success');
         } else {
           list.innerHTML = '<div style="color:var(--text-lo);font-size:0.8rem;text-align:center;padding:16px">No se encontraron sugerencias.</div>';
           log('No se encontraron nuevas fuentes', 'info');
@@ -1854,6 +2219,7 @@
           finishPipeline(true);
           hidePipelineHeader();
           playClick();
+          showToast('Articulo generado exitosamente', 'success');
           var modal = $('modal-art');
           var body = $('art-body');
           var check = $('check-list');
@@ -1897,6 +2263,7 @@
           log('--- NO SE PUDO GENERAR ARTICULO NUEVO ---', 'warn');
           log('Revise la consola: puede que el contenido ya exista o no haya suficientes fuentes.', 'warn');
           log('No se pudo generar articulo nuevo.', 'warn');
+          showToast('No se pudo generar articulo nuevo', 'warn');
         }
       } catch(e) {
         log('Error en generacion: ' + e.message, 'error');
@@ -1955,6 +2322,7 @@
        ═══════════════════════════════════════════════════════════════════════ */
     window.onload = function() {
       $('statusText').textContent = 'Conectando...';
+      initParticles();
 
       setTimeout(function() { log('Inicializando agentes...', 'info'); }, 200);
       setTimeout(function() { log('Handshake con backend...', 'info'); }, 600);

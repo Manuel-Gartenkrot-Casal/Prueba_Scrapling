@@ -350,6 +350,47 @@ def main():
     if len(ultimas_3) >= 2 and ultimas_3[-1] == ultimas_3[-2]:
         problemas.append("conclusion duplicada")
 
+    # Detectar secciones con contenido identico (clonacion de viñetas)
+    bloques_seccion = []
+    for l in lineas:
+        if l.strip().startswith("## "):
+            bloques_seccion.append([])
+        if bloques_seccion:
+            bloques_seccion[-1].append(l.strip())
+    if len(bloques_seccion) >= 2:
+        textos_bloques = []
+        for b in bloques_seccion:
+            texto_b = " ".join(b).lower()
+            textos_bloques.append(texto_b)
+        for i in range(len(textos_bloques)):
+            for j in range(i + 1, len(textos_bloques)):
+                palabras_i = set(textos_bloques[i].split())
+                palabras_j = set(textos_bloques[j].split())
+                if len(palabras_i) > 15 and len(palabras_j) > 15:
+                    interseccion = len(palabras_i & palabras_j)
+                    union = len(palabras_i | palabras_j)
+                    if union > 0 and interseccion / union > 0.5:
+                        problemas.append("secciones clonadas")
+                        break
+            if "secciones clonadas" in problemas:
+                break
+
+    # Detectar CTA repetido (mismo patrón de llamada a la acción)
+    patron_cta = re.compile(r'(descubre|conoce|transforma|descarga|accede|visita)\b.*\b(tu negocio|el mercado|el sector|las oportunidades)', re.IGNORECASE)
+    ctas = [l for l in lineas if patron_cta.search(l)]
+    if len(ctas) >= 2:
+        problemas.append("CTA repetido")
+
+    # Titulo con errores de concordancia detectables
+    titulo_linea = ""
+    for l in lineas:
+        if l.strip().startswith("# ") and not l.strip().startswith("## "):
+            titulo_linea = l.strip()
+            break
+    if titulo_linea:
+        if re.search(r'cambiando la juego|revolucionando la', titulo_linea, re.IGNORECASE):
+            problemas.append("titulo con error gramatical")
+
     if problemas:
         print(f"   [RECHAZADO] Calidad insuficiente: {', '.join(problemas)}")
         return
