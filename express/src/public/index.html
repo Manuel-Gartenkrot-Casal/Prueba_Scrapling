@@ -1991,7 +1991,6 @@
           el.className = 'feedback err';
           el.textContent = 'Error: ' + (d.error || 'Fallo');
           log('Error al agregar URL: ' + d.error, 'error');
-          showToast(d.error || 'Error al agregar URL', 'error');
         }
       } catch(e) { el.className = 'feedback err'; el.textContent = 'Error de conexion'; }
       finally { btn.disabled = false; }

@@ -6,12 +6,12 @@ from pymongo import MongoClient, ReplaceOne, UpdateOne
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/PruebaScrapling")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/afterdrive")
 
 # ── Base de Datos ─────────────────────────────────────────────────────────────
 
 client = MongoClient(MONGO_URI)
-db = client["PruebaScrapling"]
+db = client["afterdrive"]
 
 col_articulos = db["articulos"]  # Todos los artículos scrapeados
 col_trusted_urls = db["trusted_urls"]  # Lista blanca de URLs confiables

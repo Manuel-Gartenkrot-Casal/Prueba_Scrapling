@@ -4,18 +4,11 @@ import sys
 from db import clasificar_y_guardar, col_articulos, col_trusted_urls
 from lm_studio import clasificar_articulo
 from scheduler import get_max_articulos
-from scraper import _es_url_util, start
+from scraper import start
 
 
 def add_custom_url(url: str):
     print(f"Procesando URL: {url}")
-
-    # 0. Validar URL antes de intentar scrapear
-    es_util, razon = _es_url_util(url)
-    if not es_util:
-        print(f"[FAIL] URL no utilizable: {razon}")
-        print("Sugerencia: use la URL directa de un articulo o de una pagina de listado de articulos.")
-        return
 
     # 1. Scraping en modo listado: buscar articulos dentro de la pagina
     max_art = get_max_articulos()

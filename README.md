@@ -1,6 +1,6 @@
-# AfterDrive Intelligence — Scrapling + IA
+# AfterDrive Intelligence
 
-Sistema de scraping automatizado de noticias del sector automotriz y postventa, con generador de artículos periodísticos por IA (RAG + embeddings).
+Automatización de contenidos inteligentes para el sector automotriz y postventa. Scraping automatizado de noticias + generador de artículos periodísticos por IA (RAG + embeddings).
 
 Extrae artículos de múltiples fuentes, los guarda en MongoDB Atlas y genera contenido original combinando el material scrapeado con un pipeline semántico (KNN + text search).
 
@@ -41,8 +41,8 @@ No necesitás instalar nada más que Docker Desktop.
 ### 1. Clonar
 
 ```bash
-git clone https://github.com/Manuel-Gartenkrot-Casal/Prueba_Scrapling.git
-cd Prueba_Scrapling
+git clone https://github.com/Manuel-Gartenkrot-Casal/afterdrive-intelligence.git
+cd afterdrive-intelligence
 ```
 
 ### 2. Configurar variables de entorno
@@ -89,8 +89,8 @@ docker compose down
 ### 1. Clonar
 
 ```bash
-git clone https://github.com/Manuel-Gartenkrot-Casal/Prueba_Scrapling.git
-cd Prueba_Scrapling
+git clone https://github.com/Manuel-Gartenkrot-Casal/afterdrive-intelligence.git
+cd afterdrive-intelligence
 ```
 
 ### 2. Configurar entorno
@@ -218,7 +218,7 @@ python embeddings.py
 
 ## Base de datos (MongoDB Atlas)
 
-Base: `PruebaScrapling`
+Base: `afterdrive`
 
 | Colección | Contenido |
 |---|---|
@@ -252,7 +252,7 @@ La URL se usa como clave única — no se duplican artículos.
 ## Estructura del proyecto
 
 ```
-Prueba_Scrapling/
+afterdrive-intelligence/
 ├── flask_api.py              # API principal (scraping, generación, health)
 ├── scraper.py                # Scrapling spiders (StealthyFetcher + fallback Wayback)
 ├── scheduler.py              # APScheduler para ejecución automática

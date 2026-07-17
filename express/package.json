@@ -1,5 +1,5 @@
 {
-  "name": "scraping-dashboard",
+  "name": "afterdrive-intelligence",
   "version": "1.0.0",
   "scripts": {
     "build": "tsc && node -e \"require('fs').cpSync('src/public', 'dist/public', {recursive: true})\"",
