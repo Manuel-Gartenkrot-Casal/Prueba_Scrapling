@@ -31,6 +31,7 @@ COPY scraper.py .
 COPY scheduler.py .
 COPY add_url.py .
 COPY discover_sources.py .
+COPY run_automation.py .
 
 # Cambiar propiedad y usar usuario no-root
 RUN chown -R appuser:appuser /app
