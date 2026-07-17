@@ -430,7 +430,7 @@
     .generation-controls {
       display: flex;
       gap: 16px;
-      align-items: flex-end;
+      align-items: flex-start;
       flex-wrap: wrap;
     }
 
@@ -793,9 +793,12 @@
               <option value="ejecutivo">Ejecutivo</option>
             </select>
           </div>
-          <div style="display:flex; gap:10px">
-            <button class="btn btn-primary btn-large" id="btn-gen" onclick="generarStream()">Generar</button>
-            <button class="btn" onclick="verUltimo()">Último Artículo</button>
+          <div class="control-group" style="flex:0 0 auto; min-width:0;">
+            <div class="control-label" aria-hidden="true">&nbsp;</div>
+            <div style="display:flex; gap:10px">
+              <button class="btn btn-primary btn-large" id="btn-gen" onclick="generarStream()">Generar</button>
+              <button class="btn" onclick="verUltimo()">Último Artículo</button>
+            </div>
           </div>
         </div>
       </div>
