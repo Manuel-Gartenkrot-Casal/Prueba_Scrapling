@@ -314,6 +314,15 @@ def add_url():
     if not url:
         return jsonify({"success": False, "error": "Se requiere la URL."}), 400
 
+    # Validacion rapida de URL antes de lanzar el script
+    from scraper import _es_url_util
+    es_util, razon = _es_url_util(url)
+    if not es_util:
+        return jsonify({
+            "success": False,
+            "error": f"URL no utilizable: {razon}. Use la URL directa de un articulo o de una pagina de listado."
+        }), 400
+
     # Ejecutamos el nuevo script add_url.py
     result = run_script("add_url.py", [url])
     status = 200 if result["success"] else 500
@@ -326,6 +335,15 @@ def stream_add_url():
     url = body.get("url", "")
     if not url:
         return jsonify({"success": False, "error": "Se requiere la URL."}), 400
+
+    # Validacion rapida de URL antes de lanzar el script
+    from scraper import _es_url_util
+    es_util, razon = _es_url_util(url)
+    if not es_util:
+        return jsonify({
+            "success": False,
+            "error": f"URL no utilizable: {razon}. Use la URL directa de un articulo o de una pagina de listado."
+        }), 400
 
     return Response(
         stream_with_context(_stream_output("add_url.py", [url])),

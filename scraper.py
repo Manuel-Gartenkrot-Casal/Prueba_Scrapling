@@ -7,12 +7,13 @@ import trafilatura
 from bs4 import BeautifulSoup
 from scrapling.fetchers import StealthyFetcher
 
-FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 15000}
+FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 10000}
 
 _PAGINAS_SALTAR = [
     "login",
     "register",
     "search",
+    "buscador",
     "tag",
     "author",
     "category",
@@ -23,10 +24,45 @@ _PAGINAS_SALTAR = [
     "moneda",
 ]
 
+_PATRONES_NO_ARTICULO = re.compile(
+    r"(buscador|/search|/busca|gsc\.|/tag/|/author/|/category/|/page/\d+|\.xml|\.json|\.rss|/feed|/login|/register|/contact|/about|/privacy|/terms|/wp-admin|/wp-login)",
+    re.IGNORECASE,
+)
+
 
 class _Result:
     def __init__(self, items):
         self.items = items
+
+
+def _es_url_util(url: str) -> tuple[bool, str]:
+    """Valida si una URL es utilizable para scraping de artículos.
+    Retorna (es_util, razon_si_no)."""
+    parsed = urlparse(url)
+
+    # Dominio vacío
+    if not parsed.netloc:
+        return False, "URL sin dominio"
+
+    # Hash con parámetros de búsqueda de Google CSE
+    if parsed.fragment and ("gsc." in parsed.fragment or "q=" in parsed.fragment):
+        return False, "Es una página de búsqueda embebida (Google CSE)"
+
+    # Query string con parámetros de búsqueda
+    qs = parsed.query.lower()
+    if "q=" in qs and ("buscador" in parsed.path.lower() or "/search" in parsed.path.lower()):
+        return False, "Es una página de resultados de búsqueda"
+
+    # Patrones que indican que no es un listado de artículos
+    if _PATRONES_NO_ARTICULO.search(url):
+        return False, "La URL coincide con un patrón no artístico (login, búsqueda, etc.)"
+
+    # Archivos estáticos
+    path = parsed.path.lower()
+    if any(path.endswith(ext) for ext in [".pdf", ".jpg", ".png", ".mp4", ".zip", ".xml", ".json", ".css", ".js"]):
+        return False, "Es un archivo estático, no una página de artículos"
+
+    return True, "OK"
 
 
 def _http_get(url: str, timeout: int = 15) -> str | None:
@@ -195,6 +231,13 @@ def _procesar_individual(url: str, items: list):
 
 def _procesar_listado(url: str, max_articulos: int, items: list):
     """Modo listado: busca links de artículos y extrae cada uno."""
+    # Validar URL antes de intentar scrapear
+    es_util, razon = _es_url_util(url)
+    if not es_util:
+        print(f"\n>>> URL (listado): {url}")
+        print(f"  [SKIP] URL no utilizable: {razon}")
+        return
+
     print(f"\n>>> URL (listado): {url}")
     try:
         _, html = _fetch(url)
