@@ -3,28 +3,29 @@ import sys
 
 from db import clasificar_y_guardar, col_articulos, col_trusted_urls
 from lm_studio import clasificar_articulo
+from scheduler import get_max_articulos
 from scraper import start
 
 
 def add_custom_url(url: str):
     print(f"Procesando URL: {url}")
 
-    # 1. Scraping en modo individual
-    result = start([url], modo="single")
+    # 1. Scraping en modo listado: buscar articulos dentro de la pagina
+    max_art = get_max_articulos()
+    result = start([url], modo="list", max_articulos=max_art)
     items = result.items
 
     if not items:
-        print("[FAIL] No se pudo extraer contenido válido de la URL. No se agregará a URLs Confiables.")
+        print("[FAIL] No se encontraron articulos en la URL. No se agregara a URLs Confiables.")
         return
 
-    # 2. Clasificar y guardar artículos en la colección general
-    # Usamos el clasificador de LM Studio para asegurar que sea de autopartes
+    # 2. Clasificar y guardar articulos en la coleccion general
     res = clasificar_y_guardar(items, col_articulos, clasificar_articulo)
 
     print(f"\nResultado: {res['aprobados']} aprobados, {res['rechazados']} rechazados.")
 
     if res["aprobados"] > 0:
-        # 3. Agregar a URLs Confiables si al menos un artículo fue aprobado
+        # 3. Agregar a URLs Confiables si al menos un articulo fue aprobado
         col_trusted_urls.update_one(
             {"url": url},
             {
@@ -39,7 +40,7 @@ def add_custom_url(url: str):
         )
         print("[OK] URL agregada exitosamente a la lista de URLs Confiables.")
     else:
-        print("[WARN] Ningún artículo fue aprobado por el clasificador. La URL no se agregó a Confiables.")
+        print("[WARN] Ningun articulo fue aprobado por el clasificador. La URL no se agrego a Confiables.")
 
 
 if __name__ == "__main__":

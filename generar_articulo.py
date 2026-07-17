@@ -219,26 +219,25 @@ def main():
     if modo_tema:
         print(f"Modo tema específico: '{args.tema}'")
         query_expandido = f"{args.tema} autopartes aftermarket repuestos"
-        emb_tema = calcular_embedding(query_expandido) if candidatos else None
+        emb_tema = calcular_embedding(query_expandido, input_type="query") if candidatos else None
+        paquete = None
         if emb_tema:
             scored = [(d, d["_fuente"], coseno(emb_tema, d["embedding"])) for d in candidatos if d.get("embedding")]
             scored.sort(key=lambda x: x[1], reverse=True)
             scored = [x for x in scored if x[2] >= 0.50]
-            if not scored:
-                print(f"  Ningún artículo con afinidad semántica a '{args.tema}' (umbral 0.50).")
-                return
-            paquete = scored[:25]
-            tema = args.tema
-            print(f"  {len(paquete)} artículos por similitud semántica (mejor: {scored[0][2]:.3f})")
-        else:
-            # fallback a $text si falla el embedding
+            if scored:
+                paquete = scored[:25]
+                print(f"  {len(paquete)} artículos por similitud semántica (mejor: {scored[0][2]:.3f})")
+            else:
+                print(f"  Sin coincidencias semánticas, intentando búsqueda por texto...")
+        if paquete is None:
             texto_docs = _buscar_por_tema(args.tema, limite=30)
             if not texto_docs:
                 print(f"No se encontraron artículos sobre '{args.tema}'.")
                 return
             paquete = [(d, d["_fuente"], s) for d, s in texto_docs[:25]]
-            tema = args.tema
             print(f"  {len(paquete)} artículos encontrados por texto para '{args.tema}'")
+        tema = args.tema
     else:
         # ── 3. Ordenar semillas por frescura (y recencia como desempate) ─────
         candidatos.sort(
@@ -318,18 +317,52 @@ def main():
     print("=" * 60)
 
     if not articulo:
-        print("   artículo vacío.")
+        print("   articulo vacio.")
         return
 
-    # ── 6. Dedup de salida ───────────────────────────────────────────────
+    # ── 6. Quality gate: rechazar articulos con problemas criticos ──────
+    problemas = []
+
+    # Muy corto para ser util
+    if len(articulo) < 300:
+        problemas.append("muy corto")
+
+    # Sin secciones ## (estructura basica)
+    if not re.search(r"^##\s", articulo, re.MULTILINE):
+        problemas.append("sin secciones ##")
+
+    # Conteo de repeticiones de oraciones largas (>60 chars)
+    oraciones = [o.strip() for o in re.split(r'[.!?]', articulo) if len(o.strip()) > 60]
+    if oraciones:
+        vistas = set()
+        repetidas = 0
+        for o in oraciones:
+            norm = re.sub(r'\s+', ' ', o.lower().strip())
+            if norm in vistas:
+                repetidas += 1
+            vistas.add(norm)
+        if repetidas >= 2:
+            problemas.append(f"{repetidas} oraciones repetidas")
+
+    # Meta description duplicada al final
+    lineas = articulo.strip().split("\n")
+    ultimas_3 = [l.strip() for l in lineas[-3:] if l.strip()]
+    if len(ultimas_3) >= 2 and ultimas_3[-1] == ultimas_3[-2]:
+        problemas.append("conclusion duplicada")
+
+    if problemas:
+        print(f"   [RECHAZADO] Calidad insuficiente: {', '.join(problemas)}")
+        return
+
+    # ── 7. Dedup de salida ───────────────────────────────────────────────
     emb_art = calcular_embedding(articulo)
     if emb_art and generados:
         parecido = max(coseno(emb_art, g) for g in generados)
         if parecido >= UMBRAL_DEDUP:
-            print(f"   ✗ demasiado parecido a uno previo (sim {parecido:.2f}), descartado.")
+            print(f"   [RECHAZADO] Demasiado parecido a uno previo (sim {parecido:.2f}).")
             return
 
-    # ── 7. Guardar ───────────────────────────────────────────────────────
+    # ── 8. Guardar ───────────────────────────────────────────────────────
     ids = [d["_id"] for d, _ in seleccionados]
     fuentes_usadas = list({f for _, f in seleccionados})
     guardar_articulo(articulo, ids, fuentes_usadas, tema, emb_art)

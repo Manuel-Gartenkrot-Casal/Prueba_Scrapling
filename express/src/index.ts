@@ -191,6 +191,26 @@ app.post('/api/scraping-config', async (req: Request, res: Response): Promise<vo
   }
 });
 
+// GET /api/providers
+app.get('/api/providers', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/providers`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
+// POST /api/providers
+app.post('/api/providers', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/providers`, req.body, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, error: extraerError(err) });
+  }
+});
+
 // POST /api/run-automation
 app.post('/api/run-automation', async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -342,31 +362,6 @@ app.post('/api/stream/run-custom', (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: 'No se pudo conectar con el servicio de scrapers.' });
   });
   proxyReq.write(payload);
-  proxyReq.end();
-});
-
-// ── Demo Endpoint ─────────────────────────────────────────────────────────
-
-app.post('/api/stream/demo', (req: Request, res: Response) => {
-  const parsed = new URL(SCRAPERS_URL);
-  const opts: http.RequestOptions = {
-    hostname: parsed.hostname,
-    port: parsed.port || 5000,
-    path: '/api/stream/demo',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  };
-  const proxyReq = http.request(opts, (proxyRes) => {
-    res.status(proxyRes.statusCode || 200);
-    res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('X-Accel-Buffering', 'no');
-    proxyRes.pipe(res);
-  });
-  proxyReq.on('error', () => {
-    res.status(500).json({ success: false, error: 'No se pudo conectar con el servicio de scrapers.' });
-  });
-  proxyReq.write(JSON.stringify({}));
   proxyReq.end();
 });
 

@@ -8,8 +8,21 @@ from scraper import start
 
 # Configuración por defecto
 DEFAULT_INTERVAL_DAYS = 1
+DEFAULT_MAX_ARTICULOS = 10
 
 scheduler = BackgroundScheduler()
+_max_articulos = DEFAULT_MAX_ARTICULOS
+
+
+def get_max_articulos() -> int:
+    """Devuelve el máximo de artículos por fuente."""
+    return _max_articulos
+
+
+def set_max_articulos(cantidad: int):
+    """Actualiza el máximo de artículos por fuente."""
+    global _max_articulos
+    _max_articulos = max(1, cantidad)
 
 
 def run_trusted_scraping():
@@ -21,14 +34,14 @@ def run_trusted_scraping():
         print("No hay URLs confiables activas para procesar.")
         return
 
-    print(f"Procesando {len(urls_confiables)} fuentes...")
+    print(f"Procesando {len(urls_confiables)} fuentes (max {_max_articulos} artículos/fuente)...")
 
     for doc in urls_confiables:
         url = doc["url"]
         print(f"Scrapeando: {url}")
 
         try:
-            result = start([url], modo="list", max_articulos=10)
+            result = start([url], modo="list", max_articulos=_max_articulos)
             items = result.items
 
             if items:

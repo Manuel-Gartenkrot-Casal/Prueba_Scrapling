@@ -160,40 +160,62 @@ def stream_generar():
 @app.route("/api/scraping-config", methods=["GET"])
 def get_scraping_config():
     next_run = scheduler.get_next_execution()
-    # Intentamos obtener el intervalo actual del job
     job = scheduler.scheduler.get_job("trusted_scraping")
     interval = job.trigger.interval.days if job else 1
+    max_art = scheduler.get_max_articulos()
 
-    return jsonify({"success": True, "interval_days": interval, "next_execution": next_run})
+    return jsonify({"success": True, "interval_days": interval, "max_articulos": max_art, "next_execution": next_run})
 
 
 @app.route("/api/scraping-config", methods=["POST"])
 def set_scraping_config():
     body = request.get_json(silent=True) or {}
     days = body.get("interval_days")
+    max_art = body.get("max_articulos")
 
-    if days is None or not isinstance(days, int) or days < 1:
-        return jsonify({"success": False, "error": "Se requiere 'interval_days' como un entero >= 1."}), 400
+    if days is not None:
+        if not isinstance(days, int) or days < 1:
+            return jsonify({"success": False, "error": "Se requiere 'interval_days' como un entero >= 1."}), 400
+        scheduler.update_scheduler_interval(days)
 
-    scheduler.update_scheduler_interval(days)
-    return jsonify({"success": True, "message": f"Intervalo actualizado a {days} día(s)."})
+    if max_art is not None:
+        if not isinstance(max_art, int) or max_art < 1:
+            return jsonify({"success": False, "error": "Se requiere 'max_articulos' como un entero >= 1."}), 400
+        scheduler.set_max_articulos(max_art)
+
+    msg_parts = []
+    if days is not None:
+        msg_parts.append(f"intervalo a {days} día(s)")
+    if max_art is not None:
+        msg_parts.append(f"max artículos a {max_art}")
+    message = "Configuración actualizada: " + ", ".join(msg_parts) if msg_parts else "Sin cambios"
+
+    return jsonify({"success": True, "message": message})
 
 
 @app.route("/api/run-automation", methods=["POST"])
 def run_automation():
     """Dispara la ejecución inmediata del scraping de URLs confiables."""
     try:
-        threading.Thread(target=scheduler.run_trusted_scraping).start()
+        max_art = scheduler.get_max_articulos()
+        threading.Thread(target=lambda: _run_automation_thread(max_art)).start()
         return jsonify({"success": True, "message": "Scraping automatizado iniciado manualmente."})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _run_automation_thread(max_art: int):
+    from scheduler import set_max_articulos
+    set_max_articulos(max_art)
+    scheduler.run_trusted_scraping()
+
+
 @app.route("/api/stream/run-automation", methods=["POST"])
 def stream_run_automation():
     """Streaming SSE con el output en vivo del scraping de URLs confiables."""
+    max_art = scheduler.get_max_articulos()
     return Response(
-        stream_with_context(_stream_output("run_automation.py")),
+        stream_with_context(_stream_output("run_automation.py", [str(max_art)])),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -241,6 +263,32 @@ def evaluate_article():
     return jsonify({"success": True, "evaluation": resultado})
 
 
+# ── Endpoint: Proveedores de IA ───────────────────────────────────────────────
+
+
+@app.route("/api/providers", methods=["GET"])
+def get_providers():
+    """Estado actual del proveedor de IA y disponibilidad."""
+    from lm_studio import verificar_provider
+
+    return jsonify({"success": True, **verificar_provider()})
+
+
+@app.route("/api/providers", methods=["POST"])
+def set_provider():
+    """Cambiar proveedor de IA (local / nvidia)."""
+    body = request.get_json(silent=True) or {}
+    provider = body.get("provider", "")
+    if not provider:
+        return jsonify({"success": False, "error": "Se requiere el campo 'provider'."}), 400
+
+    from lm_studio import set_provider as _set_provider
+
+    result = _set_provider(provider)
+    status = 200 if result["success"] else 400
+    return jsonify(result), status
+
+
 @app.route("/api/suggested-urls", methods=["GET"])
 def suggested_urls():
     try:
@@ -281,19 +329,6 @@ def stream_add_url():
 
     return Response(
         stream_with_context(_stream_output("add_url.py", [url])),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-# ── Endpoint de Demo ─────────────────────────────────────────────────────────
-
-
-@app.route("/api/stream/demo", methods=["POST"])
-def stream_demo():
-    """Streaming SSE del pipeline completo en modo demo (<60s)."""
-    return Response(
-        stream_with_context(_stream_output("demo_mode.py")),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
