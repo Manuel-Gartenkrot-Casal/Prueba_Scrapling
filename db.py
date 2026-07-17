@@ -102,12 +102,12 @@ def clasificar_y_guardar(items, coleccion, clasificador_fn):
     if aprobados:
         print(f"  Generando embeddings para {len(aprobados)} artículo(s) aprobado(s)...")
         from embeddings import texto_para_embedding
-        from lm_studio import calcular_embedding
+        from lm_studio import calcular_embeddings_batch
 
-        for j, item in enumerate(aprobados, 1):
-            titulo = item.get("titulo", "(sin título)")
-            print(f"  Embedding [{j}/{len(aprobados)}]: {titulo[:60]}")
-            vec = calcular_embedding(texto_para_embedding(item))
+        textos = [texto_para_embedding(item) for item in aprobados]
+        embeddings = calcular_embeddings_batch(textos)
+
+        for item, vec in zip(aprobados, embeddings):
             if vec:
                 item["embedding"] = vec
 

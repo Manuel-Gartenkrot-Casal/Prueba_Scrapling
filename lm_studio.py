@@ -1150,6 +1150,49 @@ def calcular_embedding(texto: str, input_type: str = "passage") -> list[float] |
     return None
 
 
+def calcular_embeddings_batch(textos: list[str], input_type: str = "passage") -> list[list[float] | None]:
+    """
+    Calcula embeddings en batch (una sola llamada API para todos los textos).
+    Si falla el batch, cae a uno por uno como fallback.
+    """
+    textos_limpios = [(t or "").strip() for t in textos]
+    if not textos_limpios:
+        return []
+
+    max_chars = 1500 if AI_PROVIDER == "nvidia" else 8000
+    inputs = [t[:max_chars] for t in textos_limpios]
+
+    payload = {"model": _get_emb_model(), "input": inputs}
+    if AI_PROVIDER == "nvidia":
+        payload["input_type"] = input_type
+
+    for intento in range(3):
+        try:
+            resp = _post("/embeddings", payload, timeout=60, retries=1)
+            if resp.status_code in (400, 429):
+                wait = [1, 2, 4][intento]
+                print(f"  [AVISO] Embedding batch rate-limited ({resp.status_code}), retry en {wait}s...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            data_sorted = sorted(data, key=lambda x: x.get("index", 0))
+            return [d["embedding"] for d in data_sorted]
+        except Exception as e:
+            if intento < 2:
+                time.sleep([1, 2][intento])
+                continue
+            print(f"  [AVISO] Batch embedding falló: {e}. Usando fallback uno por uno.")
+            break
+
+    # Fallback: uno por uno
+    resultados = []
+    for i, texto in enumerate(textos_limpios):
+        print(f"  Embedding fallback [{i+1}/{len(textos_limpios)}]")
+        resultados.append(calcular_embedding(texto, input_type))
+    return resultados
+
+
 # ── Verificar conectividad al importar ────────────────────────────────────────
 
 verificar_conexion()
