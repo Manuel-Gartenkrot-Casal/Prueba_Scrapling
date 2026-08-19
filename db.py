@@ -18,11 +18,17 @@ col_trusted_urls = db["trusted_urls"]  # Lista blanca de URLs confiables
 col_descartados = db["articulos_descartados"]
 col_afterdrive = db["afterdrive"]
 
+# ── Fase 2 ────────────────────────────────────────────────────────────────────
+col_afterdrive_ejemplos = db["afterdrive_ejemplos"]  # Notas reales scrapeadas del blog
+col_notas_fase2 = db["notas_fase2"]                  # Notas generadas por Fase 2
+col_clientes = db["clientes"]                        # Clientes para mencionar en notas
+
 COLECCIONES_URLS = [col_articulos, col_afterdrive]
 
 COLECCIONES_TEXTO = {
     col_articulos: [("titulo", "text"), ("cuerpo", "text")],
     col_afterdrive: [("titulo", "text"), ("cuerpo", "text")],
+    col_afterdrive_ejemplos: [("titulo", "text"), ("cuerpo", "text")],
 }
 
 

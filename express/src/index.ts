@@ -365,6 +365,108 @@ app.post('/api/stream/run-custom', (req: Request, res: Response) => {
   proxyReq.end();
 });
 
+// ── Fase 2 endpoints ──────────────────────────────────────────────────────────
+
+app.get('/api/fase2/categorias', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/fase2/categorias`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.get('/api/fase2/regiones', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/fase2/regiones`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.post('/api/fase2/scrape', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/fase2/scrape`, req.body, { timeout: 300_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.post('/api/fase2/stream/scrape', (req: Request, res: Response) => {
+  const parsed = new URL(SCRAPERS_URL);
+  const payload = JSON.stringify(req.body || {});
+  const opts: http.RequestOptions = {
+    hostname: parsed.hostname,
+    port: parsed.port || 5000,
+    path: '/api/fase2/stream/scrape',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+  };
+  const proxyReq = http.request(opts, (proxyRes) => {
+    res.status(proxyRes.statusCode || 200);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', () => res.status(500).json({ success: false, error: 'Sin conexión con scrapers.' }));
+  proxyReq.write(payload);
+  proxyReq.end();
+});
+
+app.get('/api/fase2/clientes', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/fase2/clientes`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.post('/api/fase2/clientes', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/fase2/clientes`, req.body, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.delete('/api/fase2/clientes/:slug', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.delete(`${SCRAPERS_URL}/api/fase2/clientes/${req.params.slug}`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.post('/api/fase2/generar', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.post(`${SCRAPERS_URL}/api/fase2/generar`, req.body, { timeout: 1_800_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
+app.post('/api/fase2/stream/generar', (req: Request, res: Response) => {
+  const parsed = new URL(SCRAPERS_URL);
+  const payload = JSON.stringify(req.body || {});
+  const opts: http.RequestOptions = {
+    hostname: parsed.hostname,
+    port: parsed.port || 5000,
+    path: '/api/fase2/stream/generar',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+  };
+  const proxyReq = http.request(opts, (proxyRes) => {
+    res.status(proxyRes.statusCode || 200);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', () => res.status(500).json({ success: false, error: 'Sin conexión con scrapers.' }));
+  proxyReq.write(payload);
+  proxyReq.end();
+});
+
+app.get('/api/fase2/ultima-nota', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = await axios.get(`${SCRAPERS_URL}/api/fase2/ultima-nota`, { timeout: 10_000 });
+    res.json(data);
+  } catch (err) { res.status(500).json({ success: false, error: extraerError(err) }); }
+});
+
 // ── Inicio ──────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {

@@ -166,6 +166,8 @@ El frontend en `http://localhost:3000` ofrece:
 - **Configuración** — intervalo de ejecución, máximo de artículos por fuente
 - **Selector de proveedor** — cambiar entre LM Studio y NVIDIA en un click
 - **Logs en tiempo real** — consola con colores por tipo de evento
+- **Generador de notas Fase 2** — generación guiada con toggles de categorías, regiones y clientes
+- **Sincronización de ejemplos** — scrape automático del blog AfterDrive by Alephee como base de few-shot
 
 ---
 
@@ -216,6 +218,69 @@ python embeddings.py
 
 ---
 
+## Fase 2 — Generador de Notas con Toggles
+
+Sistema de generación de notas estilo AfterDrive by Alephee con pocos clicks.
+
+### Flujo de uso
+
+1. **Sincronizar Ejemplos** — scrapear el blog `afterdrive.alephee.com/es` por categoría/región y cargarlos como ejemplos few-shot en MongoDB
+2. **Activar categorías** con toggles (ej: Autopartes, Marketplaces, Neumáticos…)
+3. **Activar regiones** con toggles (Argentina, Brasil, México, Latinoamérica, Europa, China, Asia)
+4. **Activar clientes** — insertar clientes que deseás mencionar (placeholder listo para carga)
+5. **Elegir personalidad** — Comercial, Analítico, Periodístico, Divulgativo o Ejecutivo
+6. **Tema libre** (opcional) — forzar un tema específico
+7. **Modo puntapié** — activar si la nota tiene que redirigir a un link externo
+8. **Generar Nota** — streaming en consola → resultado en modal + checklist de calidad
+
+### Uso por CLI
+
+```bash
+# Ejemplo completo
+python generar_nota_fase2.py \
+    --categorias autopartes marketplaces \
+    --regiones brasil argentina \
+    --clientes cliente_a \
+    --puntapie https://alephee.com/landing \
+    --persona comercial
+
+# Solo categorías
+python generar_nota_fase2.py --categorias neumaticos logistica
+
+# Regiones sin clientes
+python generar_nota_fase2.py --categorias marketplaces --regiones mexico europa
+```
+
+### Sincronizar ejemplos del blog
+
+```bash
+# Todas las categorías
+python scraper_afterdrive.py
+
+# Solo ciertas categorías
+python scraper_afterdrive.py --tags autopartes marketplaces --max 5
+```
+
+### Regionales
+
+Clasificación automática de cada nota scrapeada según keywords normalizadas.
+Regiones: Argentina, Brasil, México, Latinoamérica, Europa, China, Asia.
+El scraper clasifica al guardar; el generador filtra los ejemplos few-shot por región activa y ajusta el prompt con el contexto de mercado correspondiente.
+
+### API Fase 2 (endpoints)
+
+| Endpoint | Método | Descripción |
+|---|---|---|
+| `/api/fase2/categorias` | GET | Lista de categorías con conteo de ejemplos |
+| `/api/fase2/regiones` | GET | Lista de regiones con conteo de ejemplos |
+| `/api/fase2/scrape` | POST | Lanza el scraper del blog (streaming disponible) |
+| `/api/fase2/clientes` | GET/POST | CRUD de clientes (placeholder) |
+| `/api/fase2/clientes/<slug>` | DELETE | Eliminar cliente |
+| `/api/fase2/generar` | POST | Genera una nota (streaming en `/api/fase2/stream/generar`) |
+| `/api/fase2/ultima-nota` | GET | Última nota generada |
+
+---
+
 ## Base de datos (MongoDB Atlas)
 
 Base: `afterdrive`
@@ -231,6 +296,9 @@ Base: `afterdrive`
 | `trusted_urls` | URLs confiables para scraping automático |
 | `suggested_urls` | URLs sugeridas por el descubridor de fuentes |
 | `afterdrive` | Configuración del scheduler |
+| `afterdrive_ejemplos` | Notas reales scrapeadas del blog AfterDrive (few-shot por categoría/región) |
+| `notas_fase2` | Notas generadas por el sistema Fase 2 |
+| `clientes` | Clientes para mencionar en notas (placeholder para carga futura) |
 
 La URL se usa como clave única — no se duplican artículos.
 
@@ -253,10 +321,13 @@ La URL se usa como clave única — no se duplican artículos.
 
 ```
 afterdrive-intelligence/
-├── flask_api.py              # API principal (scraping, generación, health)
+├── flask_api.py              # API principal (scraping, generación, health, Fase 2)
 ├── scraper.py                # Scrapling spiders (StealthyFetcher + fallback Wayback)
-├── scheduler.py              # APScheduler para ejecución automática
+├── scraper_afterdrive.py     # Fase 2: scraper del blog AfterDrive por categoría/región
 ├── generar_articulo.py       # Orquestador de generación RAG
+├── generar_nota_fase2.py     # Fase 2: generador de notas con few-shot + toggles
+├── regiones.py               # Fase 2: clasificador geográfico (keywords normalizadas)
+├── scheduler.py              # APScheduler para ejecución automática
 ├── lm_studio.py              # Prompts por personalidad + llamadas a IA
 ├── embeddings.py             # Cálculo de embeddings
 ├── db.py                     # Conexión MongoDB Atlas
@@ -269,9 +340,9 @@ afterdrive-intelligence/
 ├── .env.example              # Template de variables de entorno
 └── express/
     ├── src/
-    │   ├── index.ts          # Express proxy server
+    │   ├── index.ts          # Express proxy server (incluye endpoints Fase 2)
     │   └── public/
-    │       └── index.html    # Dashboard completo (HTML/CSS/JS)
+    │       └── index.html    # Dashboard completo (HTML/CSS/JS) con panel Fase 2
     ├── package.json
     ├── tsconfig.json
     └── Dockerfile            # Imagen Node.js (Express)

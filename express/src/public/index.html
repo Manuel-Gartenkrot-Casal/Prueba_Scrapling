@@ -1395,8 +1395,167 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
-       RESPONSIVE
+       FASE 2 — GENERADOR DE NOTAS
        ═══════════════════════════════════════════════════════════════════════ */
+    .fase2-section {
+      margin-bottom: var(--s6);
+    }
+
+    .fase2-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--s5);
+      padding-bottom: var(--s4);
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .fase2-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .toggles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: var(--s2);
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--surface-input);
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      transition: all var(--t-fast) var(--ease-out);
+      user-select: none;
+    }
+
+    .toggle-item:hover { border-color: rgba(180,169,204,0.3); }
+
+    .toggle-item.active {
+      border-color: var(--brand);
+      background: var(--brand-glow);
+    }
+
+    .toggle-label {
+      font-size: 0.8125rem;
+      color: var(--text-mid);
+    }
+
+    .toggle-item.active .toggle-label { color: var(--brand); font-weight: 500; }
+
+    .toggle-count {
+      font-size: 0.6875rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-lo);
+      background: var(--surface-raised);
+      padding: 2px 6px;
+      border-radius: var(--r-pill);
+    }
+
+    .toggle-switch {
+      width: 28px;
+      height: 16px;
+      background: var(--surface-raised);
+      border-radius: var(--r-pill);
+      position: relative;
+      transition: background var(--t-fast);
+      flex-shrink: 0;
+      margin-left: var(--s2);
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: var(--text-lo);
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transform: translateX(0);
+      transition: transform var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+    }
+
+    .toggle-item.active .toggle-switch { background: var(--brand); }
+    .toggle-item.active .toggle-switch::after { transform: translateX(12px); background: #fff; }
+
+    .puntapie-toggle .toggle-switch { transition: background var(--t-fast) var(--ease-out); }
+    .puntapie-toggle .toggle-switch::after { transition: transform 200ms var(--ease-out), background 200ms var(--ease-out); }
+    .puntapie-toggle.active .toggle-switch { background: var(--brand); }
+    .puntapie-toggle.active .toggle-switch::after { transform: translateX(12px); background: #fff; }
+
+    .fase2-grupos {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--s5);
+      margin-bottom: var(--s5);
+    }
+
+    .fase2-grupo {
+      background: var(--glass-bg);
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-lg);
+      padding: var(--s5);
+    }
+
+    .fase2-grupo-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem;
+      color: var(--text-lo);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--s3);
+    }
+
+    .cliente-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--surface-input);
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-sm);
+      margin-bottom: var(--s2);
+      font-size: 0.8125rem;
+      animation: suggestIn 0.3s var(--ease-out) both;
+    }
+
+    .cliente-nombre { color: var(--text-mid); font-weight: 500; }
+    .cliente-sector { color: var(--text-lo); font-size: 0.75rem; }
+
+    .puntapie-row {
+      display: flex;
+      gap: var(--s3);
+      align-items: center;
+      margin-bottom: var(--s3);
+    }
+
+    .puntapie-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--s3);
+      padding: 10px 14px;
+      background: var(--surface-input);
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      user-select: none;
+      transition: all var(--t-fast);
+      white-space: nowrap;
+    }
+
+    .puntapie-toggle.active { border-color: var(--brand); background: var(--brand-glow); }
+    .puntapie-toggle.active span { color: var(--brand); font-weight: 500; }
+
+    @media (max-width: 1024px) {
+      .fase2-grupos { grid-template-columns: 1fr; }
+    }
     @media (max-width: 1280px) {
       .pipeline-node span { display: none; }
       .pipeline-node { padding: 6px 8px; }
@@ -1621,6 +1780,97 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Fase 2: Generador de Notas -->
+    <div class="fase2-section">
+      <div class="fase2-header">
+        <div>
+          <h2 class="fase2-title">Generador de Notas <span style="color:var(--brand)">Fase 2</span></h2>
+          <p style="font-size:0.8125rem;color:var(--text-lo);margin-top:4px">Seleccioná categorías, configurá clientes y generá notas estilo AfterDrive</p>
+        </div>
+        <div style="display:flex;gap:var(--s3)">
+          <button class="btn" id="btn-f2-scrape" onclick="fase2Scrape()">Sincronizar Ejemplos</button>
+          <span class="card-badge" style="align-self:center" id="f2-ejemplos-badge">0 ejemplos</span>
+        </div>
+      </div>
+
+      <div class="fase2-grupos">
+        <!-- Categorías -->
+        <div class="fase2-grupo" style="grid-column:1/-1">
+          <div class="fase2-grupo-title">Categorías (seleccioná una o más)</div>
+          <div class="toggles-grid" id="f2-categorias-grid">
+            <div style="color:var(--text-lo);font-size:0.8rem">Cargando categorías...</div>
+          </div>
+        </div>
+
+        <!-- Regiones -->
+        <div class="fase2-grupo" style="grid-column:1/-1">
+          <div class="fase2-grupo-title">Regiones (opcional — dejá todas apagadas para sin filtro regional)</div>
+          <div class="toggles-grid" id="f2-regiones-grid">
+            <div style="color:var(--text-lo);font-size:0.8rem">Cargando regiones...</div>
+          </div>
+        </div>
+
+        <!-- Clientes -->
+        <div class="fase2-grupo">
+          <div class="fase2-grupo-title">Clientes a mencionar</div>
+          <div id="f2-clientes-list" style="margin-bottom:var(--s3)">
+            <div style="color:var(--text-lo);font-size:0.8rem">Sin clientes cargados. Podés agregar uno abajo.</div>
+          </div>
+          <div class="input-row">
+            <input type="text" id="f2-cli-nombre" class="input-field" placeholder="Nombre del cliente" />
+            <button class="btn" onclick="fase2AgregarCliente()">Agregar</button>
+          </div>
+          <input type="text" id="f2-cli-desc" class="input-field" placeholder="Descripción breve" style="margin-top:var(--s2);width:100%" />
+          <div id="f2-cli-status" class="feedback"></div>
+        </div>
+
+        <!-- Opciones de generación -->
+        <div class="fase2-grupo">
+          <div class="fase2-grupo-title">Opciones de nota</div>
+
+          <!-- Personalidad -->
+          <div style="margin-bottom:var(--s4)">
+            <div class="control-label">Personalidad / Tono</div>
+            <select id="f2-persona" class="select-field" style="width:100%">
+              <option value="comercial">Comercial</option>
+              <option value="analitico">Analítico-Técnico</option>
+              <option value="periodistico">Periodístico</option>
+              <option value="divulgativo">Divulgativo</option>
+              <option value="ejecutivo">Ejecutivo</option>
+            </select>
+          </div>
+
+          <!-- Tema libre -->
+          <div style="margin-bottom:var(--s4)">
+            <div class="control-label">Tema específico (opcional)</div>
+            <input type="text" id="f2-tema" class="input-field" style="width:100%" placeholder="Ej: dropshipping en Argentina…" />
+          </div>
+
+          <!-- Puntapié a link -->
+          <div style="margin-bottom:var(--s3)">
+            <div class="control-label" style="margin-bottom:var(--s2)">Modo puntapié a link</div>
+            <div class="puntapie-row">
+              <div class="puntapie-toggle" id="f2-puntapie-toggle" onclick="togglePuntapie()">
+                <div class="toggle-switch" id="f2-puntapie-switch"></div>
+                <span id="f2-puntapie-label">Desactivado</span>
+              </div>
+            </div>
+            <div id="f2-puntapie-url-wrap" style="display:none">
+              <input type="url" id="f2-puntapie-url" class="input-field" style="width:100%" placeholder="https://..." />
+              <div style="font-size:0.75rem;color:var(--text-lo);margin-top:4px">La nota apuntará a redirigir al lector a esta URL</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acción -->
+      <div style="display:flex;gap:var(--s3);justify-content:flex-end;margin-bottom:var(--s4)">
+        <button class="btn" onclick="fase2VerUltima()">Última Nota</button>
+        <button class="btn btn-primary btn-large" id="btn-f2-generar" onclick="fase2GenerarStream()">Generar Nota</button>
+      </div>
+      <div id="f2-status" class="feedback"></div>
     </div>
 
     <!-- Console -->
@@ -2318,6 +2568,326 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
+       FASE 2 — GENERADOR DE NOTAS
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    var _f2Categorias = [];
+    var _f2CategoriasActivas = new Set();
+    var _f2Regiones = [];
+    var _f2RegionesActivas = new Set();
+    var _f2Clientes = [];
+    var _f2ClientesActivos = new Set();
+    var _f2PuntapieActivo = false;
+
+    async function fase2Init() {
+      await Promise.all([fase2CargarCategorias(), fase2CargarRegiones(), fase2CargarClientes()]);
+    }
+
+    async function fase2CargarCategorias() {
+      try {
+        var r = await fetch('/api/fase2/categorias');
+        var d = await r.json();
+        if (!d.success) return;
+        _f2Categorias = d.categorias;
+        var totalEjemplos = _f2Categorias.reduce(function(a, c) { return a + (c.ejemplos || 0); }, 0);
+        $('f2-ejemplos-badge').textContent = totalEjemplos + ' ejemplos';
+        var grid = $('f2-categorias-grid');
+        grid.innerHTML = '';
+        _f2Categorias.forEach(function(cat) {
+          var item = document.createElement('div');
+          item.className = 'toggle-item';
+          item.dataset.slug = cat.slug;
+          item.innerHTML =
+            '<span class="toggle-label">' + escHtml(cat.nombre) + '</span>' +
+            '<div style="display:flex;align-items:center;gap:6px">' +
+              '<span class="toggle-count">' + (cat.ejemplos || 0) + '</span>' +
+              '<div class="toggle-switch"></div>' +
+            '</div>';
+          item.onclick = function() { fase2ToggleCategoria(cat.slug, item); };
+          grid.appendChild(item);
+        });
+      } catch(e) { console.error('Error cargando categorías:', e); }
+    }
+
+    function fase2ToggleCategoria(slug, el) {
+      if (_f2CategoriasActivas.has(slug)) {
+        _f2CategoriasActivas.delete(slug);
+        el.classList.remove('active');
+      } else {
+        _f2CategoriasActivas.add(slug);
+        el.classList.add('active');
+      }
+    }
+
+    async function fase2CargarRegiones() {
+      try {
+        var r = await fetch('/api/fase2/regiones');
+        var d = await r.json();
+        if (!d.success) return;
+        _f2Regiones = d.regiones;
+        var grid = $('f2-regiones-grid');
+        grid.innerHTML = '';
+        _f2Regiones.forEach(function(reg) {
+          var item = document.createElement('div');
+          item.className = 'toggle-item';
+          item.dataset.slug = reg.slug;
+          item.innerHTML =
+            '<span class="toggle-label">' + escHtml(reg.nombre) + '</span>' +
+            '<div style="display:flex;align-items:center;gap:6px">' +
+              '<span class="toggle-count">' + (reg.ejemplos || 0) + '</span>' +
+              '<div class="toggle-switch"></div>' +
+            '</div>';
+          item.onclick = function() { fase2ToggleRegion(reg.slug, item); };
+          grid.appendChild(item);
+        });
+      } catch(e) { console.error('Error cargando regiones:', e); }
+    }
+
+    function fase2ToggleRegion(slug, el) {
+      if (_f2RegionesActivas.has(slug)) {
+        _f2RegionesActivas.delete(slug);
+        el.classList.remove('active');
+      } else {
+        _f2RegionesActivas.add(slug);
+        el.classList.add('active');
+      }
+    }
+
+    async function fase2CargarClientes() {
+      try {
+        var r = await fetch('/api/fase2/clientes');
+        var d = await r.json();
+        if (!d.success) return;
+        _f2Clientes = d.clientes;
+        renderClientes();
+      } catch(e) {}
+    }
+
+    function renderClientes() {
+      var list = $('f2-clientes-list');
+      if (!_f2Clientes.length) {
+        list.innerHTML = '<div style="color:var(--text-lo);font-size:0.8rem">Sin clientes cargados. Podés agregar uno abajo.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      _f2Clientes.forEach(function(c) {
+        var item = document.createElement('div');
+        item.className = 'cliente-item toggle-item' + (_f2ClientesActivos.has(c.slug) ? ' active' : '');
+        item.innerHTML =
+          '<div style="flex:1;cursor:pointer" onclick="fase2ToggleCliente(\'' + c.slug + '\', this.parentElement)">' +
+            '<div class="cliente-nombre">' + escHtml(c.nombre) + '</div>' +
+            (c.sector ? '<div class="cliente-sector">' + escHtml(c.sector) + '</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px">' +
+            '<div class="toggle-switch"></div>' +
+            '<button class="btn" style="padding:4px 8px;font-size:0.65rem" onclick="fase2EliminarCliente(\'' + c.slug + '\')" title="Eliminar">✕</button>' +
+          '</div>';
+        list.appendChild(item);
+      });
+    }
+
+    function fase2ToggleCliente(slug, el) {
+      if (_f2ClientesActivos.has(slug)) {
+        _f2ClientesActivos.delete(slug);
+        el.classList.remove('active');
+      } else {
+        _f2ClientesActivos.add(slug);
+        el.classList.add('active');
+      }
+    }
+
+    async function fase2AgregarCliente() {
+      var nombre = $('f2-cli-nombre').value.trim();
+      var desc = $('f2-cli-desc').value.trim();
+      if (!nombre) return;
+      var st = $('f2-cli-status');
+      st.className = 'feedback info';
+      st.textContent = 'Guardando...';
+      try {
+        var r = await fetch('/api/fase2/clientes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ nombre: nombre, descripcion: desc })
+        });
+        var d = await r.json();
+        if (d.success) {
+          st.className = 'feedback ok';
+          st.textContent = 'Cliente guardado.';
+          $('f2-cli-nombre').value = '';
+          $('f2-cli-desc').value = '';
+          await fase2CargarClientes();
+          showToast('Cliente agregado: ' + nombre, 'success');
+        } else {
+          st.className = 'feedback err';
+          st.textContent = d.error || 'Error';
+        }
+      } catch(e) { st.className = 'feedback err'; st.textContent = 'Error de conexión'; }
+    }
+
+    async function fase2EliminarCliente(slug) {
+      try {
+        await fetch('/api/fase2/clientes/' + slug, { method: 'DELETE' });
+        _f2ClientesActivos.delete(slug);
+        await fase2CargarClientes();
+      } catch(e) {}
+    }
+
+    function togglePuntapie() {
+      _f2PuntapieActivo = !_f2PuntapieActivo;
+      var toggle = $('f2-puntapie-toggle');
+      var label = $('f2-puntapie-label');
+      var wrap = $('f2-puntapie-url-wrap');
+      toggle.classList.toggle('active', _f2PuntapieActivo);
+      label.textContent = _f2PuntapieActivo ? 'Activado' : 'Desactivado';
+      wrap.style.display = _f2PuntapieActivo ? 'block' : 'none';
+    }
+
+    async function fase2Scrape() {
+      var btn = $('btn-f2-scrape');
+      setBtnLoading(btn, true);
+      log('--- SINCRONIZANDO EJEMPLOS DE AFTERDRIVE ---', 'warn');
+      try {
+        var activasArr = Array.from(_f2CategoriasActivas);
+        var body = activasArr.length ? { tags: activasArr, max: 5 } : { max: 3 };
+        var res = await fetch('/api/fase2/stream/scrape', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          decoder.decode(chunk.value).split('\n').forEach(function(l) {
+            if (!l) return;
+            var type = l.indexOf('[OK]') >= 0 ? 'success' : l.indexOf('[ERROR]') >= 0 ? 'error' : 'info';
+            log(l, type);
+          });
+        }
+        log('Sincronización de ejemplos completada.', 'success');
+        showToast('Ejemplos sincronizados', 'success');
+        await fase2CargarCategorias();
+      } catch(e) {
+        log('Error en sincronización: ' + e.message, 'error');
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    }
+
+    async function fase2GenerarStream() {
+      var categorias = Array.from(_f2CategoriasActivas);
+      if (!categorias.length) {
+        showToast('Seleccioná al menos una categoría', 'warn');
+        return;
+      }
+      var btn = $('btn-f2-generar');
+      var st = $('f2-status');
+      setBtnLoading(btn, true);
+      st.className = 'feedback info';
+      st.textContent = 'Generando nota...';
+
+      var body = {
+        categorias: categorias,
+        regiones: Array.from(_f2RegionesActivas).length ? Array.from(_f2RegionesActivas) : [],
+        clientes: Array.from(_f2ClientesActivos),
+        persona: $('f2-persona').value,
+        tema: $('f2-tema').value.trim() || null,
+        puntapie_url: (_f2PuntapieActivo && $('f2-puntapie-url').value.trim()) ? $('f2-puntapie-url').value.trim() : null,
+      };
+
+      log('--- GENERANDO NOTA FASE 2 [' + categorias.join(', ') + '] ---', 'warn');
+      var exito = false;
+      try {
+        var res = await fetch('/api/fase2/stream/generar', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var fullOutput = '';
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          var text = decoder.decode(chunk.value);
+          fullOutput += text;
+          text.split('\n').forEach(function(l) {
+            if (!l) return;
+            var type = l.indexOf('[OK]') >= 0 ? 'success' : l.indexOf('[ERROR]') >= 0 ? 'error' : 'info';
+            log(l.trim(), type);
+          });
+        }
+        exito = fullOutput.indexOf('[OK]') >= 0;
+
+        if (exito) {
+          st.className = 'feedback ok';
+          st.textContent = 'Nota generada correctamente.';
+          showToast('Nota generada', 'success');
+          playClick();
+          await fase2MostrarUltima();
+        } else {
+          st.className = 'feedback err';
+          st.textContent = 'No se pudo generar la nota. Revisá la consola.';
+        }
+      } catch(e) {
+        log('Error: ' + e.message, 'error');
+        st.className = 'feedback err';
+        st.textContent = 'Error de conexión';
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    }
+
+    async function fase2VerUltima() {
+      await fase2MostrarUltima();
+    }
+
+    async function fase2MostrarUltima() {
+      try {
+        var r = await fetch('/api/fase2/ultima-nota');
+        var d = await r.json();
+        if (!d.success) {
+          showToast('No hay notas generadas aún', 'warn');
+          return;
+        }
+        var modal = $('modal-art');
+        var body = $('art-body');
+        var check = $('check-list');
+        var comm = $('eval-comms');
+        modal.classList.add('open');
+        body.innerHTML = marked.parse(d.nota.contenido);
+        check.innerHTML = '';
+        comm.textContent = '';
+
+        if (d.nota.categorias && d.nota.categorias.length) {
+          var info = document.createElement('div');
+          info.style.cssText = 'margin-bottom:12px;font-size:0.8rem;color:var(--text-lo)';
+          info.textContent = 'Categorías: ' + d.nota.categorias.join(', ');
+          if (d.nota.puntapie_url) info.textContent += ' | Puntapié: ' + d.nota.puntapie_url;
+          check.appendChild(info);
+        }
+
+        var evR = await fetch('/api/evaluate-article', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ articulo: d.nota.contenido })
+        });
+        var evD = await evR.json();
+        if (evD.success) {
+          Object.entries(evD.evaluation.lineamientos || evD.evaluation).forEach(function(entry) {
+            var k = entry[0], v = entry[1];
+            var item = document.createElement('div');
+            item.className = 'check-item ' + (v ? 'ok' : 'fail');
+            item.innerHTML = '<div class="check-dot"></div> ' + k.replace(/_/g, ' ');
+            check.appendChild(item);
+          });
+          if (evD.evaluation.comentarios) comm.textContent = evD.evaluation.comentarios;
+        }
+      } catch(e) { showToast('Error al cargar nota', 'error'); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
        BOOT SEQUENCE
        ═══════════════════════════════════════════════════════════════════════ */
     window.onload = function() {
@@ -2329,6 +2899,7 @@
 
       updateStats();
       checkProviders();
+      fase2Init();
 
       setTimeout(function() {
         log('Sistema operativo. Command Center activo.', 'success');

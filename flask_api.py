@@ -48,16 +48,20 @@ def run_script(script: str, extra_args: list[str] | None = None) -> dict:
 
 def _stream_output(script: str, extra_args: list[str] | None = None):
     """Ejecuta un script y produce su stdout línea por línea en tiempo real."""
+    import io
     start = time.time()
     cmd = [sys.executable, script] + (extra_args or [])
     try:
+        env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env=env,
+            encoding="utf-8",
+            errors="replace",
         )
 
         _LM_LOG = re.compile(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[(INFO|DEBUG|WARNING|ERROR|WARN)\]")
@@ -332,6 +336,152 @@ def stream_add_url():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── Fase 2: Endpoints ─────────────────────────────────────────────────────────
+
+
+@app.route("/api/fase2/categorias", methods=["GET"])
+def fase2_categorias():
+    from scraper_afterdrive import CATEGORIAS, get_categorias_disponibles
+    todas = [{"slug": slug, "nombre": nombre} for slug, nombre in CATEGORIAS.items()]
+    disponibles = {r["_id"]: r["total"] for r in get_categorias_disponibles()}
+    for cat in todas:
+        cat["ejemplos"] = disponibles.get(cat["slug"], 0)
+    return jsonify({"success": True, "categorias": todas})
+
+
+@app.route("/api/fase2/regiones", methods=["GET"])
+def fase2_regiones():
+    from regiones import REGIONES
+    from scraper_afterdrive import get_regiones_disponibles
+    disponibles = {r["_id"]: r["total"] for r in get_regiones_disponibles()}
+    todas = [{"slug": slug, "nombre": nombre, "ejemplos": disponibles.get(slug, 0)} for slug, nombre in REGIONES.items()]
+    return jsonify({"success": True, "regiones": todas})
+
+
+@app.route("/api/fase2/scrape", methods=["POST"])
+def fase2_scrape():
+    body = request.get_json(silent=True) or {}
+    tags = body.get("tags") or None
+    max_por_tag = int(body.get("max", 5))
+    result = run_script("scraper_afterdrive.py",
+                        (["--tags"] + tags if tags else []) + ["--max", str(max_por_tag)])
+    return jsonify(result), 200 if result["success"] else 500
+
+
+@app.route("/api/fase2/stream/scrape", methods=["POST"])
+def fase2_stream_scrape():
+    body = request.get_json(silent=True) or {}
+    tags = body.get("tags") or []
+    max_por_tag = str(body.get("max", 5))
+    extra = (["--tags"] + tags if tags else []) + ["--max", max_por_tag]
+    return Response(
+        stream_with_context(_stream_output("scraper_afterdrive.py", extra)),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/fase2/clientes", methods=["GET"])
+def fase2_get_clientes():
+    from db import col_clientes
+    docs = list(col_clientes.find({}, {"_id": 0, "embedding": 0}))
+    return jsonify({"success": True, "clientes": docs})
+
+
+@app.route("/api/fase2/clientes", methods=["POST"])
+def fase2_crear_cliente():
+    from db import col_clientes
+    body = request.get_json(silent=True) or {}
+    nombre = body.get("nombre", "").strip()
+    if not nombre:
+        return jsonify({"success": False, "error": "Se requiere 'nombre'."}), 400
+    doc = {
+        "slug": re.sub(r"[^a-z0-9]+", "-", nombre.lower()).strip("-"),
+        "nombre": nombre,
+        "descripcion": body.get("descripcion", ""),
+        "productos": body.get("productos", []),
+        "sector": body.get("sector", ""),
+        "url": body.get("url", ""),
+    }
+    col_clientes.update_one({"slug": doc["slug"]}, {"$set": doc}, upsert=True)
+    return jsonify({"success": True, "cliente": doc})
+
+
+@app.route("/api/fase2/clientes/<slug>", methods=["DELETE"])
+def fase2_eliminar_cliente(slug: str):
+    from db import col_clientes
+    col_clientes.delete_one({"slug": slug})
+    return jsonify({"success": True})
+
+
+@app.route("/api/fase2/generar", methods=["POST"])
+def fase2_generar():
+    body = request.get_json(silent=True) or {}
+    categorias = body.get("categorias", [])
+    clientes = body.get("clientes", [])
+    puntapie_url = body.get("puntapie_url", None)
+    persona = body.get("persona", "comercial")
+    tema = body.get("tema", None)
+    regiones = body.get("regiones", [])
+
+    if not categorias:
+        return jsonify({"success": False, "error": "Se requiere al menos una categoría."}), 400
+
+    from generar_nota_fase2 import generar_nota
+    resultado = generar_nota(
+        categorias=categorias,
+        clientes_ids=clientes,
+        puntapie_url=puntapie_url,
+        persona=persona,
+        tema=tema,
+        regiones=regiones,
+    )
+    status = 200 if resultado["success"] else 500
+    return jsonify(resultado), status
+
+
+@app.route("/api/fase2/stream/generar", methods=["POST"])
+def fase2_stream_generar():
+    body = request.get_json(silent=True) or {}
+    categorias = body.get("categorias", [])
+    clientes = body.get("clientes", [])
+    puntapie_url = body.get("puntapie_url", "") or ""
+    persona = body.get("persona", "comercial")
+    tema = body.get("tema", "") or ""
+    regiones = body.get("regiones", []) or []
+
+    extra = []
+    if categorias:
+        extra += ["--categorias"] + categorias
+    if clientes:
+        extra += ["--clientes"] + clientes
+    if regiones:
+        extra += ["--regiones"] + regiones
+    if puntapie_url:
+        extra += ["--puntapie", puntapie_url]
+    if persona:
+        extra += ["--persona", persona]
+    if tema:
+        extra += ["--tema", tema]
+
+    return Response(
+        stream_with_context(_stream_output("generar_nota_fase2.py", extra)),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/fase2/ultima-nota", methods=["GET"])
+def fase2_ultima_nota():
+    from generar_nota_fase2 import get_ultima_nota
+    doc = get_ultima_nota()
+    if not doc:
+        return jsonify({"success": False, "error": "No hay notas generadas aún."}), 404
+    doc["_id"] = str(doc["_id"])
+    doc.pop("embedding", None)
+    return jsonify({"success": True, "nota": doc})
 
 
 if __name__ == "__main__":
