@@ -1597,6 +1597,7 @@
           <span class="prov-label" style="color:var(--text-lo);font-size:0.625rem;text-transform:uppercase;letter-spacing:0.05em;margin-right:4px;font-family:'JetBrains Mono',monospace">Proveedor</span>
           <button class="prov-btn" id="prov-local" onclick="switchProvider('local')" style="padding:4px 10px;font-size:0.75rem;border-radius:6px;border:1px solid var(--hairline);background:transparent;color:var(--text-mid);cursor:pointer;transition:all 140ms;font-family:inherit">Local</button>
           <button class="prov-btn" id="prov-nvidia" onclick="switchProvider('nvidia')" style="padding:4px 10px;font-size:0.75rem;border-radius:6px;border:1px solid var(--hairline);background:transparent;color:var(--text-mid);cursor:pointer;transition:all 140ms;font-family:inherit">NVIDIA</button>
+          <button class="prov-btn" id="prov-openrouter" onclick="switchProvider('openrouter')" style="padding:4px 10px;font-size:0.75rem;border-radius:6px;border:1px solid var(--hairline);background:transparent;color:var(--text-mid);cursor:pointer;transition:all 140ms;font-family:inherit">OpenRouter</button>
         </div>
         <div class="status-pill">
           <div class="status-dot off" id="statusPulse"></div>
@@ -2320,6 +2321,7 @@
     function updateProviderUI(provider) {
       var localBtn = $('prov-local');
       var nvidiaBtn = $('prov-nvidia');
+      var openrouterBtn = $('prov-openrouter');
       if (localBtn) {
         localBtn.classList.toggle('active', provider === 'local');
         localBtn.style.background = provider === 'local' ? 'var(--brand)' : 'transparent';
@@ -2331,6 +2333,12 @@
         nvidiaBtn.style.background = provider === 'nvidia' ? 'var(--brand)' : 'transparent';
         nvidiaBtn.style.color = provider === 'nvidia' ? '#fff' : 'var(--text-mid)';
         nvidiaBtn.style.borderColor = provider === 'nvidia' ? 'var(--brand)' : 'var(--hairline)';
+      }
+      if (openrouterBtn) {
+        openrouterBtn.classList.toggle('active', provider === 'openrouter');
+        openrouterBtn.style.background = provider === 'openrouter' ? 'var(--brand)' : 'transparent';
+        openrouterBtn.style.color = provider === 'openrouter' ? '#fff' : 'var(--text-mid)';
+        openrouterBtn.style.borderColor = provider === 'openrouter' ? 'var(--brand)' : 'var(--hairline)';
       }
     }
 

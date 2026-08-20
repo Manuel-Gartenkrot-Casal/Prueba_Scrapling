@@ -1,9 +1,10 @@
 """
 lm_studio.py
 
-Cliente unificado para LLM con soporte dual:
+Cliente unificado para LLM con soporte triple:
   - Local: LM Studio (API compatible con OpenAI)
   - Cloud: NVIDIA Build (API compatible con OpenAI)
+  - Cloud: OpenRouter (API compatible con OpenAI)
 
 Usa dos system prompts separados (evaluación y redacción):
 
@@ -11,13 +12,15 @@ Usa dos system prompts separados (evaluación y redacción):
   <REDACTAR> → genera artículos originales a partir de contexto
 
 Configuración vía .env:
-  AI_PROVIDER       (default: "local", opciones: "local", "nvidia")
-  LMSTUDIO_URL      (default: http://localhost:1234/v1)
-  LMSTUDIO_MODEL    (default: mistral-7b-instruct-v0.3)
-  NVIDIA_API_KEY    (requerido para "nvidia")
-  NVIDIA_BASE_URL   (default: https://integrate.api.nvidia.com/v1)
-  NVIDIA_MODEL      (default: z-ai/glm-5.2)
-  NVIDIA_EMB_MODEL  (default: nvidia/nv-embedqa-e5-v5)
+  AI_PROVIDER         (default: "local", opciones: "local", "nvidia", "openrouter")
+  LMSTUDIO_URL        (default: http://localhost:1234/v1)
+  LMSTUDIO_MODEL      (default: mistral-7b-instruct-v0.3)
+  NVIDIA_API_KEY      (requerido para "nvidia")
+  NVIDIA_BASE_URL     (default: https://integrate.api.nvidia.com/v1)
+  NVIDIA_MODEL        (default: z-ai/glm-5.2)
+  NVIDIA_EMB_MODEL    (default: nvidia/nv-embedqa-e5-v5)
+  OPENROUTER_API_KEY  (requerido para "openrouter")
+  OPENROUTER_MODEL    (default: mistralai/mistral-small-3.1-24b-instruct:free)
 
 Nota: usa requests directamente, sin el paquete openai.
 """
@@ -48,6 +51,12 @@ NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com
 NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "z-ai/glm-5.2")
 NVIDIA_EMB_MODEL = os.getenv("NVIDIA_EMB_MODEL", "nvidia/nv-embedqa-e5-v5")
 NVIDIA_FALLBACK_MODEL = os.getenv("NVIDIA_FALLBACK_MODEL", "meta/llama-3.1-8b-instruct")
+
+# OpenRouter (cloud)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
+OPENROUTER_FALLBACK_MODEL = os.getenv("OPENROUTER_FALLBACK_MODEL", "nvidia/nemotron-3.5-lightning:free")
 
 # ── System prompts optimizados con patrones de prompt engineering ──────────────
 
@@ -431,6 +440,8 @@ _DISPONIBLE = True
 
 def _get_base_url() -> str:
     """URL base según el proveedor activo."""
+    if AI_PROVIDER == "openrouter" and OPENROUTER_API_KEY:
+        return OPENROUTER_BASE_URL
     if AI_PROVIDER == "nvidia" and NVIDIA_API_KEY:
         return NVIDIA_BASE_URL
     return LMSTUDIO_URL
@@ -438,6 +449,8 @@ def _get_base_url() -> str:
 
 def _get_model() -> str:
     """Nombre del modelo según el proveedor activo."""
+    if AI_PROVIDER == "openrouter" and OPENROUTER_API_KEY:
+        return OPENROUTER_MODEL
     if AI_PROVIDER == "nvidia" and NVIDIA_API_KEY:
         return NVIDIA_MODEL
     return MODELO
@@ -452,6 +465,8 @@ def _get_emb_model() -> str:
 
 def _get_headers() -> dict:
     """Headers HTTP según el proveedor activo."""
+    if AI_PROVIDER == "openrouter" and OPENROUTER_API_KEY:
+        return {"Authorization": f"Bearer {OPENROUTER_API_KEY}"}
     if AI_PROVIDER == "nvidia" and NVIDIA_API_KEY:
         return {"Authorization": f"Bearer {NVIDIA_API_KEY}"}
     return {}
@@ -459,20 +474,28 @@ def _get_headers() -> dict:
 
 def _post(endpoint: str, payload: dict, timeout: int = 60, stream: bool = False, retries: int = 3) -> requests.Response:
     """POST unificado con URL, headers, timeout y retry con backoff para 429.
-    Si el modelo principal (GLM) get 429, intenta con el fallback (Llama)."""
+    Si el modelo principal get 429, intenta con el fallback."""
     url = f"{_get_base_url()}{endpoint}"
     modelo_original = payload.get("model", "")
     for intento in range(retries):
         resp = requests.post(url, json=payload, headers=_get_headers(), timeout=timeout, stream=stream)
         if resp.status_code != 429:
             return resp
-        # Si es el primer intento y tenemos modelo fallback, probarlo
+        # Fallback para NVIDIA: GLM-5.2 -> Llama
         if intento == 0 and modelo_original == NVIDIA_MODEL and NVIDIA_FALLBACK_MODEL and endpoint == "/chat/completions":
             payload_fallback = {**payload, "model": NVIDIA_FALLBACK_MODEL}
             resp_fb = requests.post(url, json=payload_fallback, headers=_get_headers(), timeout=timeout, stream=stream)
             if resp_fb.status_code == 200:
                 if not stream:
                     print(f"[FALLBACK] GLM-5.2 rate-limited -> usando {NVIDIA_FALLBACK_MODEL}", flush=True)
+                return resp_fb
+        # Fallback para OpenRouter: modelo principal -> modelo alternativo
+        if intento == 0 and modelo_original == OPENROUTER_MODEL and OPENROUTER_FALLBACK_MODEL and endpoint == "/chat/completions":
+            payload_fallback = {**payload, "model": OPENROUTER_FALLBACK_MODEL}
+            resp_fb = requests.post(url, json=payload_fallback, headers=_get_headers(), timeout=timeout, stream=stream)
+            if resp_fb.status_code == 200:
+                if not stream:
+                    print(f"[FALLBACK] {OPENROUTER_MODEL} rate-limited -> usando {OPENROUTER_FALLBACK_MODEL}", flush=True)
                 return resp_fb
         wait = min(5 * (2 ** intento), 60)
         if not stream:
@@ -559,7 +582,8 @@ def verificar_conexion() -> bool:
         _DISPONIBLE = True
     except Exception:
         _DISPONIBLE = False
-        proveedor = "NVIDIA" if AI_PROVIDER == "nvidia" else "LM Studio"
+        proveedores = {"nvidia": "NVIDIA", "openrouter": "OpenRouter"}
+        proveedor = proveedores.get(AI_PROVIDER, "LM Studio")
         print(f"[AVISO] {proveedor} ({_get_base_url()}) no disponible. Los artículos se guardarán sin filtrar.")
     return _DISPONIBLE
 
@@ -579,6 +603,7 @@ def verificar_provider() -> dict:
         "provider": AI_PROVIDER,
         "local_available": _check_local(),
         "nvidia_available": bool(NVIDIA_API_KEY),
+        "openrouter_available": bool(OPENROUTER_API_KEY),
         "model": _get_model(),
         "emb_model": _get_emb_model(),
     }
@@ -595,10 +620,12 @@ def set_provider(provider: str) -> dict:
         {"success": bool, "provider": str, ...} o {"success": False, "error": str}
     """
     global AI_PROVIDER
-    if provider not in ("local", "nvidia"):
-        return {"success": False, "error": "Proveedor inválido. Usá 'local' o 'nvidia'."}
+    if provider not in ("local", "nvidia", "openrouter"):
+        return {"success": False, "error": "Proveedor inválido. Usá 'local', 'nvidia' u 'openrouter'."}
     if provider == "nvidia" and not NVIDIA_API_KEY:
         return {"success": False, "error": "No hay API key de NVIDIA configurada."}
+    if provider == "openrouter" and not OPENROUTER_API_KEY:
+        return {"success": False, "error": "No hay API key de OpenRouter configurada."}
     AI_PROVIDER = provider
     os.environ["AI_PROVIDER"] = provider
     verificar_conexion()
