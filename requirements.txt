@@ -1,6 +1,7 @@
 scrapling[fetchers]
 pymongo[srv]
 flask
+gunicorn
 requests
 python-dotenv
 trafilatura

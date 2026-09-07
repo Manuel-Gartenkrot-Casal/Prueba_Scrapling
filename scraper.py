@@ -7,7 +7,17 @@ import trafilatura
 from bs4 import BeautifulSoup
 from scrapling.fetchers import StealthyFetcher
 
-FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 15000}
+FETCH_OPTS = {
+    "headless": True,
+    "disable_resources": True,
+    "timeout": 15000,
+    "extra_args": [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-extensions",
+    ],
+}
 
 _PAGINAS_SALTAR = [
     "login",

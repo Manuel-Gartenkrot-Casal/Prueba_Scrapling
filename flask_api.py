@@ -16,6 +16,27 @@ CORS(app)
 
 _TIMEOUT = 1800  # 30 min (generación IA ~15-25 min en CPU)
 
+
+# ── Endpoint Raíz ──────────────────────────────────────────────────────────────
+
+
+@app.route("/")
+def root():
+    return jsonify({"status": "online", "service": "After Drive Intelligence API"}), 200
+
+
+# ── Manejadores Globales de Errores ────────────────────────────────────────────
+
+
+@app.errorhandler(404)
+def not_found(_error):
+    return jsonify({"success": False, "error": "Recurso no encontrado"}), 404
+
+
+@app.errorhandler(500)
+def internal_error(_error):
+    return jsonify({"success": False, "error": "Error interno del servidor"}), 500
+
 # ── Helper: ejecutar script y capturar salida completa ────────────────────────
 
 
@@ -485,7 +506,10 @@ def fase2_ultima_nota():
 
 
 if __name__ == "__main__":
-    # Iniciar el scheduler de scraping automático
     scheduler.start_scheduler()
 
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    PORT = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=PORT, threaded=True)
+else:
+    # Gunicorn: iniciar scheduler al importar el módulo
+    scheduler.start_scheduler()

@@ -78,7 +78,17 @@ _HEADERS = {
                   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-_FETCH_OPTS = {"headless": True, "disable_resources": True, "timeout": 20000}
+_FETCH_OPTS = {
+    "headless": True,
+    "disable_resources": True,
+    "timeout": 20000,
+    "extra_args": [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-extensions",
+    ],
+}
 
 
 def _get(url: str, timeout: int = 15) -> str | None:
