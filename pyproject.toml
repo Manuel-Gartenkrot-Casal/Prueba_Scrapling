@@ -1,6 +1,9 @@
 # Ruff configuration for AfterDrive Intelligence
 # https://docs.astral.sh/ruff/
 
+[tool.vercel]
+entrypoint = "flask_api.py"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120
