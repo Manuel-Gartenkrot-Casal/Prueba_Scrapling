@@ -283,7 +283,7 @@ def generar_nota(
             choices = chunk.get("choices", [])
             if choices:
                 delta = choices[0].get("delta", {})
-                content = delta.get("content") or delta.get("reasoning_content") or delta.get("reasoning") or ""
+                content = delta.get("content") or ""
                 partes.append(content)
         except Exception:
             continue
