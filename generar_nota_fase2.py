@@ -257,6 +257,7 @@ def generar_nota(
         "temperature": 0.72,
         "max_tokens": 4000,
         "stream": True,
+        "include_reasoning": False,
     }
 
     print("  Generando nota...")
