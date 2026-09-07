@@ -31,7 +31,8 @@ col_notas_fase2 = db["notas_fase2"]
 col_clientes = db["clientes"]
 
 EJEMPLOS_POR_CATEGORIA = 2
-MAX_CHARS_EJEMPLO = 2500
+MAX_CHARS_EJEMPLO = 1200
+MAX_EJEMPLOS_TOTAL = 6
 
 
 def _formatear_ejemplos(ejemplos: list[dict]) -> str:
@@ -236,6 +237,7 @@ def generar_nota(
                 clientes_docs.append(doc)
 
     ejemplos = get_ejemplos_por_tags(categorias, regiones=regiones or None, limit=EJEMPLOS_POR_CATEGORIA)
+    ejemplos = ejemplos[:MAX_EJEMPLOS_TOTAL]
     print(f"  Few-shot: {len(ejemplos)} ejemplo(s) cargado(s) para {categorias}" +
           (f" — regiones {regiones}" if regiones else ""))
     if not ejemplos:
