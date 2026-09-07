@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 
-from flask import Flask, Response, jsonify, request, stream_with_context
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 from flask_cors import CORS
 
 import scheduler
@@ -16,12 +16,19 @@ CORS(app)
 
 _TIMEOUT = 1800  # 30 min (generación IA ~15-25 min en CPU)
 
+# Dashboard estático (build del frontend Express). Si no está presente
+# (dev local sin build), se responde el JSON de estado de la API.
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
 
 # ── Endpoint Raíz ──────────────────────────────────────────────────────────────
 
 
 @app.route("/")
 def root():
+    index_path = os.path.join(_STATIC_DIR, "index.html")
+    if os.path.isfile(index_path):
+        return send_from_directory(_STATIC_DIR, "index.html")
     return jsonify({"status": "online", "service": "After Drive Intelligence API"}), 200
 
 
@@ -104,6 +111,7 @@ def _stream_output(script: str, extra_args: list[str] | None = None):
 
 
 @app.route("/health")
+@app.route("/api/health")
 def health():
     return jsonify({"status": "ok"})
 
@@ -169,6 +177,7 @@ def generar():
 
 
 @app.route("/stream/generar", methods=["POST"])
+@app.route("/api/stream/generar", methods=["POST"])
 def stream_generar():
     body = request.get_json(silent=True) or {}
     args_list = _parse_request_args(body)

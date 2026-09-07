@@ -1,3 +1,13 @@
+# ── Etapa 1: build del dashboard (Express) ────────────────────────────────────
+FROM node:20-alpine AS dash
+WORKDIR /dash
+COPY express/package*.json ./
+RUN npm ci
+COPY express/tsconfig.json .
+COPY express/src/ ./src/
+RUN npm run build
+
+# ── Etapa 2: imagen final (API + dashboard) ───────────────────────────────────
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -35,6 +45,9 @@ COPY scheduler.py .
 COPY add_url.py .
 COPY discover_sources.py .
 COPY run_automation.py .
+
+# Dashboard estático generado en la etapa 1
+COPY --from=dash /dash/dist/public/ ./static/
 
 # Cambiar propiedad y usar usuario no-root
 RUN chown -R appuser:appuser /app

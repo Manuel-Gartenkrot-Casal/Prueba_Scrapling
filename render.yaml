@@ -1,7 +1,10 @@
+# Blueprint de Render — un solo web service (API + dashboard en el mismo contenedor).
+# Flask sirve la API en /api/* y el dashboard estático en la raíz (/).
+# Si ya tenés el servicio manual `afterdrive-intelligence` creado, este archivo no
+# es necesario: el mismo Dockerfile raíz se auto-despliega con cada push a main.
 services:
-  # ── Backend Flask (API + Scrapers) ────────────────────────────────────────
   - type: web
-    name: afterdrive-api
+    name: afterdrive-intelligence
     runtime: docker
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
@@ -14,26 +17,5 @@ services:
         sync: false
       - key: OPENROUTER_MODEL
         value: "mistralai/mistral-small-3.1-24b-instruct:free"
-      - key: LMSTUDIO_URL
-        value: ""
-      - key: LMSTUDIO_MODEL
-        value: ""
-      - key: NVIDIA_API_KEY
-        value: ""
       - key: MONGO_URI
         sync: false
-
-  # ── Frontend Express (Dashboard Visual) ──────────────────────────────────
-  - type: web
-    name: afterdrive-frontend
-    runtime: docker
-    rootDir: ./express
-    dockerContext: ./express
-    dockerfilePath: ./express/Dockerfile
-    healthCheckPath: /
-    envVars:
-      - key: SCRAPERS_URL
-        fromService:
-          name: afterdrive-api
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
