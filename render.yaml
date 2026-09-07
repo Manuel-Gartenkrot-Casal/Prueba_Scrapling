@@ -1,0 +1,36 @@
+services:
+  # ── Backend Flask (API + Scrapers) ────────────────────────────────────────
+  - type: web
+    name: afterdrive-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: AI_PROVIDER
+        value: openrouter
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: "mistralai/mistral-small-3.1-24b-instruct:free"
+      - key: LMSTUDIO_URL
+        value: ""
+      - key: LMSTUDIO_MODEL
+        value: ""
+      - key: NVIDIA_API_KEY
+        value: ""
+      - key: MONGO_URI
+        sync: false
+
+  # ── Frontend Express (Dashboard Visual) ──────────────────────────────────
+  - type: web
+    name: afterdrive-frontend
+    runtime: docker
+    dockerfilePath: ./express/Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: SCRAPERS_URL
+        fromService:
+          name: afterdrive-api
+          property: host

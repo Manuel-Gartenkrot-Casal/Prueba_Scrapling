@@ -28,6 +28,9 @@ COPY embeddings.py .
 COPY flask_api.py .
 COPY generar_articulo.py .
 COPY scraper.py .
+COPY scraper_afterdrive.py .
+COPY regiones.py .
+COPY generar_nota_fase2.py .
 COPY scheduler.py .
 COPY add_url.py .
 COPY discover_sources.py .
