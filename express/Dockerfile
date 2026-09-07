@@ -10,9 +10,6 @@ COPY src/ ./src/
 
 RUN npm run build
 
-# Copiar archivos estáticos al directorio de salida
-RUN cp -r src/public dist/public
-
 # Crear usuario no-root
 RUN addgroup -g 1001 -S appgroup && \
     adduser -S appuser -u 1001 -G appgroup
