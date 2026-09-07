@@ -29,3 +29,13 @@ known-first-party = ["db", "scraper", "scheduler", "lm_studio", "embeddings"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[project]
+name = "mi-app-flask"
+version = "0.1.0"
+dependencies = [
+    "flask"
+]
+
+[tool.vercel]
+entrypoint = "flask_api:app"
