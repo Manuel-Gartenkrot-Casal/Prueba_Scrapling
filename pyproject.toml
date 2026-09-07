@@ -28,10 +28,11 @@ quote-style = "double"
 indent-style = "space"
 
 [project]
-name = "mi-app-flask"
+name = "after-drive-intelligence"
 version = "0.1.0"
 dependencies = [
-    "flask"
+    "flask",
+    "flask-cors"
 ]
 
 [tool.vercel]
