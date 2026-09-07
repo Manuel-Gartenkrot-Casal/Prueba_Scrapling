@@ -28,10 +28,12 @@ services:
     name: afterdrive-frontend
     runtime: docker
     rootDir: ./express
-    dockerfilePath: ./Dockerfile
+    dockerContext: ./express
+    dockerfilePath: ./express/Dockerfile
     healthCheckPath: /
     envVars:
       - key: SCRAPERS_URL
         fromService:
           name: afterdrive-api
-          property: host
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
